@@ -38,8 +38,8 @@ Checks are informed by the [EKS Best Practices Guide](https://docs.aws.amazon.co
 ### Quick Start
 
 ```bash
-git clone https://github.com/kahhaw9368/eks-upgrade-skill.git
-cd eks-upgrade-skill
+git clone git@ssh.gitlab.aws.dev:kahhaw/sample-eks-upgrade-skill.git
+cd sample-eks-upgrade-skill
 claude
 ```
 
