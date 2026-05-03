@@ -1,6 +1,6 @@
 # EKS Upgrade Readiness Skill
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT--0-brightgreen.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-7C3AED.svg)](https://claude.ai/claude-code)
 
@@ -232,7 +232,7 @@ The MCP server runs in its own process and doesn't inherit your shell environmen
 ```
 eks-upgrade-skill/
 ├── README.md                         # This file
-├── LICENSE                           # Apache 2.0 license
+├── LICENSE                           # MIT-0 license
 ├── SECURITY.md                       # Security policy & responsible disclosure
 ├── .mcp.json                         # MCP server configuration
 ├── docs/                             # Sample report screenshots
@@ -270,4 +270,4 @@ If you discover a security vulnerability, please see [SECURITY.md](SECURITY.md) 
 
 ## License
 
-This project is licensed under the [Apache 2.0 License](LICENSE).
+This project is licensed under the [MIT-0 License](LICENSE).
