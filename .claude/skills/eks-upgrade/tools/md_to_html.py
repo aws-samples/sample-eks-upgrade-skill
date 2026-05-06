@@ -282,8 +282,12 @@ def md_to_html(md_content: str) -> str:
         text = html.escape(text)
         # Code spans first (to avoid processing inside them)
         text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
-        # Links
-        text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+        # Links — only allow safe URL schemes; leave unsafe links as plain text
+        def render_link(match):
+            label, url = match.group(1), match.group(2)
+            safe = url.startswith(("http://", "https://", "mailto:", "#", "/"))
+            return f'<a href="{url}">{label}</a>' if safe else match.group(0)
+        text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", render_link, text)
         # Bold
         text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
         # Italic
