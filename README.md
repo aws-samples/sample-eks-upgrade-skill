@@ -40,7 +40,7 @@ Checks are informed by the [EKS Best Practices Guide](https://docs.aws.amazon.co
 ### Quick Start
 
 ```bash
-git clone git@ssh.gitlab.aws.dev:kahhaw/sample-eks-upgrade-skill.git
+git clone https://github.com/aws-samples/sample-eks-upgrade-skill.git
 cd sample-eks-upgrade-skill
 claude
 ```
@@ -293,7 +293,7 @@ eks-upgrade-skill/
 
 ## Contributing
 
-Contributions are welcome. Please [open an issue](https://github.com/kahhaw9368/eks-upgrade-skill/issues) first to discuss what you'd like to change.
+Contributions are welcome. Please [open an issue](https://github.com/aws-samples/sample-eks-upgrade-skill/issues) first to discuss what you'd like to change.
 
 ## Security
 
