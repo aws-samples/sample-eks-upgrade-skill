@@ -8,6 +8,8 @@ A [Claude Code](https://claude.ai/claude-code) skill that performs automated EKS
 
 Checks are informed by the [EKS Best Practices Guide](https://docs.aws.amazon.com/eks/latest/best-practices/) and [EKS User Guide](https://docs.aws.amazon.com/eks/latest/userguide/). All operations are **read-only** — the skill does not modify your cluster.
 
+> **Disclaimer:** This is sample code provided for educational and demonstration purposes only. It is not production-ready and should be reviewed, tested, and validated against your organization's security and operational requirements before use. The IAM permissions, MCP server configuration, and assessment logic should be adapted for your environment.
+
 <p align="center">
   <img src="docs/sample-report-summary.png" alt="Sample EKS Upgrade Readiness Report" width="720">
 </p>
@@ -112,6 +114,8 @@ To convert to HTML: `python3 .claude/skills/eks-upgrade/tools/md_to_html.py <rep
 
 This skill uses two MCP servers, both pre-configured in `.mcp.json`. No setup is needed for the default configuration — just clone and run.
 
+> **MCP server versions are pinned** (`awslabs.eks-mcp-server@0.1.28`, `awslabs.aws-documentation-mcp-server@1.1.21`) to keep behaviour reproducible and avoid pulling unreviewed upstream updates. To upgrade, bump the version strings in `.mcp.json` after reviewing the upstream changelog at [awslabs/mcp](https://github.com/awslabs/mcp/releases).
+
 <details>
 <summary><strong>Switching to the AWS-Managed EKS MCP Server</strong></summary>
 
@@ -169,16 +173,45 @@ Claude Code merges MCP config from global (`~/.claude/settings.json`) and projec
 
 ### AWS IAM
 
-Minimum IAM permissions:
+Replace `<region>` and `<account-id>` with your values. The second statement uses `"*"` because those actions do not support resource-level permissions — see the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
 
-```
-eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups,
-eks:DescribeNodegroup, eks:ListAddons, eks:DescribeAddon,
-eks:DescribeAddonVersions, eks:ListInsights, eks:DescribeInsight,
-eks:ListAccessEntries, eks:DescribeAccessEntry
-ec2:DescribeSubnets, ec2:DescribeSecurityGroupRules
-iam:GetRole, iam:ListAttachedRolePolicies,
-iam:ListRolePolicies, iam:GetRolePolicy
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EKSReadScoped",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeCluster",
+        "eks:ListNodegroups",
+        "eks:DescribeNodegroup",
+        "eks:ListAddons",
+        "eks:DescribeAddon",
+        "eks:DescribeAddonVersions",
+        "eks:ListInsights",
+        "eks:DescribeInsight",
+        "eks:ListAccessEntries",
+        "eks:DescribeAccessEntry"
+      ],
+      "Resource": "arn:aws:eks:<region>:<account-id>:cluster/*"
+    },
+    {
+      "Sid": "AccountLevelReads",
+      "Effect": "Allow",
+      "Action": [
+        "eks:ListClusters",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroupRules",
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:GetRolePolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
 ```
 
 > **Tip:** If using the AWS-managed EKS MCP server, attach the `AmazonEKSMCPReadOnlyAccess` managed policy instead.
@@ -201,7 +234,7 @@ Your IAM identity needs read access to Kubernetes resources (Nodes, Pods, Deploy
 
 1. Check Python and uv are installed: `uv --version`
 2. Check AWS credentials: `aws sts get-caller-identity`
-3. Test the MCP server directly: `uvx awslabs.eks-mcp-server@latest`
+3. Test the MCP server directly: `uvx awslabs.eks-mcp-server@0.1.28`
 4. Verify `AWS_PROFILE` and `AWS_REGION` in `.mcp.json` match your environment
 
 </details>

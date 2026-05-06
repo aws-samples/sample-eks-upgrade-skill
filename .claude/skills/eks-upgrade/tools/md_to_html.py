@@ -276,6 +276,10 @@ def md_to_html(md_content: str) -> str:
 
     def inline_format(text: str) -> str:
         """Apply inline formatting: bold, italic, code, links, checkboxes."""
+        # Escape HTML first so cluster-derived strings (labels, image tags,
+        # annotations) can't inject markup. Markdown transforms below
+        # re-introduce tags only for trusted patterns.
+        text = html.escape(text)
         # Code spans first (to avoid processing inside them)
         text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
         # Links
