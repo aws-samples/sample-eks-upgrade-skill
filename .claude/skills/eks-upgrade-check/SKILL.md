@@ -1,5 +1,5 @@
 ---
-name: eks-upgrade
+name: eks-upgrade-check
 description: "Assess EKS cluster upgrade readiness - run automated checks across 8 areas, calculate a readiness score (0-100%), and generate a report with remediation steps. Use when: EKS upgrade, cluster upgrade, upgrade readiness, deprecated API, version skew, addon compatibility, Karpenter, node upgrade, control plane upgrade."
 allowed-tools: Bash, Read, Write, Grep, Glob, WebFetch, WebSearch
 ---
@@ -78,7 +78,7 @@ export AWS_REGION=your-region
 
 ### Getting Started
 
-Invoke the skill: `/eks-upgrade`
+Invoke the skill: `/eks-upgrade-check`
 
 Or simply ask: *"Run an EKS upgrade readiness assessment"*
 

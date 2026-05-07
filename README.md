@@ -53,7 +53,7 @@ On first launch, Claude Code will prompt you to enable two MCP servers from `.mc
 Then run:
 
 ```
-/eks-upgrade
+/eks-upgrade-check
 ```
 
 The skill discovers your EKS clusters, asks which cluster and target version, and walks you through the assessment.
@@ -100,7 +100,7 @@ Reports are generated in the workspace root:
 
 Each report includes a readiness score, score breakdown, blockers & critical actions, per-section findings, and a step-by-step upgrade plan with pre-filled CLI commands.
 
-To convert to HTML: `python3 .claude/skills/eks-upgrade/tools/md_to_html.py <report>.md` (zero external dependencies).
+To convert to HTML: `python3 .claude/skills/eks-upgrade-check/tools/md_to_html.py <report>.md` (zero external dependencies).
 
 <details>
 <summary><strong>Sample upgrade plan</strong></summary>
@@ -274,7 +274,7 @@ eks-upgrade-skill/
 │   └── sample-report-upgrade-plan.png
 └── .claude/
     └── skills/
-        └── eks-upgrade/
+        └── eks-upgrade-check/
             ├── SKILL.md              # Skill definition & agent workflow
             ├── steering/             # Assessment logic (agent instructions)
             │   ├── version-validation.md
