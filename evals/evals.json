@@ -1,0 +1,66 @@
+{
+  "skill_name": "eks-upgrade-check",
+  "description": "Scoring and report generation evals. Each prompt feeds pre-determined findings and expects specific scoring behavior. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write",
+  "evals": [
+    {
+      "id": 1,
+      "name": "clean-cluster-ready",
+      "prompt_file": "scenarios/01-clean-cluster.md",
+      "expected_output": "Score 90-100%, rating READY, no blockers, all required report sections present",
+      "assertions": [
+        {"name": "score_90_plus", "check": "score >= 90"},
+        {"name": "rating_ready", "check": "report contains 'READY'"},
+        {"name": "no_blockers", "check": "Blockers section says 'No blockers identified'"},
+        {"name": "all_sections_present", "check": "report contains all required headings"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "hard-blocker-karpenter",
+      "prompt_file": "scenarios/02-karpenter-blocker.md",
+      "expected_output": "Score ≤59%, rating NOT READY, Karpenter flagged as blocker",
+      "assertions": [
+        {"name": "score_capped_59", "check": "score <= 59"},
+        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
+        {"name": "karpenter_in_blockers", "check": "Blockers section mentions Karpenter"},
+        {"name": "karpenter_version_detected", "check": "report contains '0.37'"},
+        {"name": "upgrade_order_correct", "check": "Upgrade Plan mentions Karpenter before control plane"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "hard-blocker-degraded-addon",
+      "prompt_file": "scenarios/03-degraded-addon.md",
+      "expected_output": "Score ≤59%, rating NOT READY, EBS CSI flagged as blocker",
+      "assertions": [
+        {"name": "score_capped_59", "check": "score <= 59"},
+        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
+        {"name": "ebs_csi_in_blockers", "check": "Blockers section mentions ebs-csi or EBS CSI"},
+        {"name": "degraded_mentioned", "check": "report contains 'DEGRADED'"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "hard-blocker-subnet-ips",
+      "prompt_file": "scenarios/04-subnet-exhausted.md",
+      "expected_output": "Score ≤59%, rating NOT READY, subnet IP exhaustion flagged",
+      "assertions": [
+        {"name": "score_capped_59", "check": "score <= 59"},
+        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
+        {"name": "subnet_in_blockers", "check": "Blockers section mentions subnet or IP"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "multiple-medium-no-blockers",
+      "prompt_file": "scenarios/05-medium-issues.md",
+      "expected_output": "Score 78% FAIR, no hard blocker override, issues in Recommended Actions",
+      "assertions": [
+        {"name": "score_is_78", "check": "score == 78"},
+        {"name": "rating_fair_or_risky", "check": "report contains 'FAIR' or 'RISKY'"},
+        {"name": "no_hard_blocker_override", "check": "score > 59"},
+        {"name": "recommended_actions_populated", "check": "Recommended Actions section is not empty/placeholder"}
+      ]
+    }
+  ]
+}
