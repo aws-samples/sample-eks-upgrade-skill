@@ -61,12 +61,52 @@ This prevents miscounting and ensures no workload is missed.
 1. List PodDisruptionBudgets across all namespaces
 2. From the master table, filter for `kind == Deployment AND replicas > 1` in non-system namespaces
 3. Cross-reference: which multi-replica deployments have NO matching PDB?
-4. Also check for PDBs with `disruptionsAllowed: 0` (blocks node drain, will stall upgrade)
+4. Check for **drain-blocking PDBs** (see 6.2b below)
 
 **IMPORTANT:** Only flag missing PDBs for workloads with replicas > 1. A PDB on a single-replica
 deployment is meaningless — do NOT flag single-replica workloads for missing PDBs.
 
 **Rating:** Each missing PDB on multi-replica deployment = MEDIUM severity (1 pt).
+
+### 6.2b — Drain-Blocking PDBs (upgrade stall risk)
+
+**Why this matters:** A PDB that allows zero disruptions will cause `kubectl drain` to hang
+indefinitely during node group upgrades. The node group upgrade will eventually time out
+(typically after 1+ hours), failing the rolling update. This is the #1 cause of "upgrade stuck"
+support tickets.
+
+**How to check:**
+1. For each PDB found in step 6.2, inspect:
+   - `status.disruptionsAllowed` == 0, OR
+   - `spec.maxUnavailable` == 0, OR
+   - `spec.minAvailable` == total replicas of the target workload
+2. If any of the above conditions is true AND the target workload has pods running on
+   nodes that will be drained during the upgrade → flag it.
+
+**Report message (use this exact framing):**
+
+> **⚠️ PDB may stall node group upgrade**
+>
+> `<pdb-name>` in namespace `<ns>` currently allows 0 disruptions for `<workload-name>`.
+> During a node group rolling update, EKS drains each node before replacing it. If this PDB
+> cannot be satisfied (e.g., not enough capacity on remaining nodes to reschedule pods), the
+> drain will hang until the node group upgrade times out (~1 hour).
+>
+> **Before upgrading:**
+> 1. Verify sufficient cluster capacity exists for pods to reschedule to other nodes
+> 2. Consider temporarily relaxing the PDB: `kubectl patch pdb <name> -n <ns> -p '{"spec":{"maxUnavailable":1}}'`
+> 3. Or ensure the workload has enough replicas spread across multiple nodes
+>
+> **If you skip this:** The node group upgrade will likely time out and require manual
+> intervention. The control plane upgrade itself will succeed, but node rotation will stall.
+
+**Rating:** Each drain-blocking PDB = MEDIUM severity (2 pts).
+
+**This is NOT a hard blocker** because:
+- The control plane upgrade itself will succeed
+- The issue only manifests during node group rolling update
+- It can be resolved mid-upgrade by patching the PDB
+- But it WILL cause significant delay and potential manual intervention if not addressed
 
 ### 6.3 — Missing Health Probes
 
@@ -126,8 +166,11 @@ This makes the count verifiable. If the count doesn't match the listed row numbe
 
 ## Score Impact
 
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 6 (Workload Risks).**
+
 | Finding | Deduction |
 |---------|-----------|
-| High-severity workload risk | 3 pts each (max 8) |
-| Medium-severity workload risk | 1 pt each (max 4) |
+| High-severity workload risk (single replica, Recreate) | 3 pts each (sub-cap 8) |
+| Medium-severity workload risk (missing probes, requests, PDBs) | 1 pt each (sub-cap 4) |
+| Drain-blocking PDB (disruptionsAllowed == 0) | 2 pts each (sub-cap 4) |
 | Max category | 10 pts |

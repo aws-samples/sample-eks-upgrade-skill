@@ -3,11 +3,20 @@
 ## Purpose
 Validate the upgrade path, determine support status, and enforce EKS upgrade rules.
 
-## EKS Version Support Calendar (as of March 2026)
+## EKS Version Support Calendar (fallback reference, as of March 2026)
+
+> **Freshness gate — apply BEFORE using this table:**
+> 1. If the cluster version or target version is **NOT in the table below** → fetch live
+>    data from AWS docs (`search_documentation` for "EKS Kubernetes versions") before proceeding.
+> 2. If today's assessment date is **past the "Extended Support Until" date** for the cluster's
+>    current version → that version's status may have changed to UNSUPPORTED. Verify live before
+>    reporting support status.
+> 3. If live lookup fails or the MCP server is unavailable → use the table as fallback, but add
+>    a note in the report: "Support status unverified — table data may be stale."
 
 | Version | Standard Support Until | Extended Support Until | Status |
 |---------|----------------------|----------------------|--------|
-| 1.35 | March 27, 2027 | March 27, 2028 | ✅ STANDARD (latest) |
+| 1.35 | March 27, 2027 | March 27, 2028 | ✅ STANDARD (latest in this table) |
 | 1.34 | December 2, 2026 | December 2, 2027 | ✅ STANDARD |
 | 1.33 | July 29, 2026 | July 29, 2027 | ✅ STANDARD |
 | 1.32 | March 23, 2026 | March 23, 2027 | ✅ STANDARD |
@@ -15,7 +24,7 @@ Validate the upgrade path, determine support status, and enforce EKS upgrade rul
 | 1.30 | July 23, 2025 | July 23, 2026 | ⚠️ EXTENDED |
 | 1.29 | March 23, 2025 | March 23, 2026 | 🔴 EXTENDED (ending soon) |
 
-**CRITICAL:** The `upgradePolicy.supportType` field from the API is a CONFIGURATION PREFERENCE, not the current billing status. Always determine actual support status from the calendar above.
+**CRITICAL:** The `upgradePolicy.supportType` field from the API is a CONFIGURATION PREFERENCE, not the current billing status. Always determine actual support status from the calendar above or from live AWS documentation.
 
 **Cost impact:** Extended support costs $0.60/hr vs $0.10/hr for standard support.
 
@@ -30,14 +39,58 @@ Always use this formula. Do NOT round, estimate, or hallucinate cost figures.
 
 ## Checks to Execute
 
+### 1.0 — Target Version Existence (MUST run before other checks)
+
+**Why:** EKS releases versions incrementally. A target version that doesn't exist on EKS yet
+cannot be assessed. The arithmetic check (target - current == 1) is necessary but NOT sufficient.
+
+**How to check:**
+1. Confirm the target version exists in the calendar table above.
+2. If NOT in the table → search AWS docs (`search_documentation` for "EKS Kubernetes versions")
+   to confirm whether the version has been released on EKS.
+3. If live lookup also finds no evidence the version exists on EKS → **ABORT the assessment.**
+
+**If target version does not exist on EKS — STOP and report:**
+
+```
+## Assessment Cannot Proceed
+
+**Target version <target> is not yet available on Amazon EKS.**
+
+The latest supported EKS version is <latest_known>. Kubernetes <target> has not been
+released on EKS as of this assessment date (<date>).
+
+**What you can do:**
+- Assess upgrade readiness to <latest_known> instead (if your cluster is on <latest - 1>)
+- Monitor the EKS release calendar for <target> availability:
+  https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html
+```
+
+Do NOT proceed with Steps 1-8. Do NOT produce a readiness score. End the assessment here.
+
 ### 1.1 — Current Version & Support Status
 
 **How to check:**
 1. Describe the cluster → get `version` and `platformVersion`
-2. Match version against the calendar table above
-3. Report: version, support status, when current support period ends
+2. Match version against the calendar table above (applying the freshness gate)
+3. Determine the support status. Possible states:
+   - **STANDARD** — within standard support window
+   - **EXTENDED** — past standard support, within extended support window
+   - **UNSUPPORTED** — past extended support end date (see handling below)
+4. Report: version, support status, when current support period ends (or already ended)
 
-**Output:** Current version, support tier, cost implications if on extended support.
+**UNSUPPORTED version handling:**
+
+If the cluster version's Extended Support Until date has passed:
+- Status = **UNSUPPORTED**
+- Severity = **CRITICAL**
+- Flag as a blocker in the report (see report-generation.md for template)
+- The cluster no longer receives security patches or bug fixes from AWS
+- AWS may force-upgrade the cluster with limited notice
+- Extended support billing ($0.60/hr) still applies even past the end date until the cluster is upgraded
+- Score impact: 15 pts deduction (see report-generation.md §Category 10)
+
+**Output:** Current version, support tier, cost implications. If UNSUPPORTED, include urgency callout.
 
 ### 1.2 — Upgrade Path Validation
 
@@ -72,9 +125,13 @@ Always use this formula. Do NOT round, estimate, or hallucinate cost figures.
 
 ## Score Impact
 
-| Finding | Deduction | Severity |
-|---------|-----------|----------|
-| On extended support | 0 (informational) | INFO |
-| Multi-hop upgrade needed | 0 (informational) | INFO |
-| Node skew == 2 (warning) | 5-10 pts | MEDIUM |
-| Node skew > 2 (blocker) | 20 pts | CRITICAL |
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 3 (Node Readiness) and §Category 10 (Unsupported Version).**
+
+| Finding | Severity | Quick Reference |
+|---------|----------|-----------------|
+| On extended support | INFO | 0 pts |
+| Version UNSUPPORTED | CRITICAL | 15 pts (Category 10) |
+| Multi-hop upgrade needed | INFO | 0 pts |
+| Target version unreleased | N/A | Assessment aborted — no score |
+| Node skew == 2 (warning) | MEDIUM | 5 pts per node group |
+| Node skew > 2 (blocker) | CRITICAL | 20 pts (caps category) |

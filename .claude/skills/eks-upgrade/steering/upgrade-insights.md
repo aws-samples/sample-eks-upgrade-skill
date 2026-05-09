@@ -19,12 +19,12 @@ For any insight with status other than `PASSING`:
 
 ### Step 3: Classify Findings
 
-| Insight Status | Severity | Score Impact |
-|---------------|----------|--------------|
-| PASSING | NONE | 0 |
-| WARNING | MEDIUM | 2 pts each |
-| ERROR | HIGH | 5 pts each |
-| UNKNOWN | LOW | 0 |
+| Insight Status | Severity |
+|---------------|----------|
+| PASSING | NONE |
+| WARNING | MEDIUM |
+| ERROR | HIGH |
+| UNKNOWN | LOW |
 
 ### Step 4: Cross-Reference with Other Sections
 
@@ -43,8 +43,5 @@ AWS Upgrade Insights checks multiple versions ahead, not just the immediate targ
 
 ## Score Impact
 
-| Finding | Deduction |
-|---------|-----------|
-| FAILING insight | 5 pts each (max 10) |
-| ERROR insight | 2 pts each (max 5) |
-| Max category | 10 pts |
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 7.**
+> Quick reference: FAILING = 5 pts, ERROR = 3 pts, WARNING = 2 pts. Max category = 10 pts.

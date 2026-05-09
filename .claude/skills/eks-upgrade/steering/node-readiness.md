@@ -74,10 +74,76 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 - No self-managed nodes → PASS
 - Self-managed nodes present → WARN (no automated upgrade path, manual AMI update required)
 
+### 5.5 — Subnet IP Capacity
+
+**Why this matters:**
+- EKS requires **at least 5 available IPs** in each cluster subnet to update the control plane
+  (EKS creates new ENIs for the upgraded API server). If any subnet has < 5 IPs, the
+  `update-cluster-version` API call will fail immediately.
+- During node group rolling updates, new nodes are launched before old nodes are terminated
+  (surge). Each new node consumes 1 IP for its primary ENI plus additional IPs for the VPC CNI
+  warm pool (pod IPs). Insufficient capacity causes the node group update to hang.
+
+**How to check:**
+1. Get the cluster subnet IDs from the cluster description (already retrieved in pre-flight
+   Action 2 — `resourcesVpcConfig.subnetIds`).
+2. Run:
+   ```bash
+   aws ec2 describe-subnets --subnet-ids <subnet-id-1> <subnet-id-2> ... \
+     --query 'Subnets[].{SubnetId:SubnetId,AZ:AvailabilityZone,AvailableIPs:AvailableIpAddressCount,CIDR:CidrBlock}' \
+     --output table
+   ```
+3. For each subnet, evaluate `AvailableIpAddressCount` against thresholds.
+
+**Thresholds:**
+
+| Available IPs | Verdict | Severity |
+|---------------|---------|----------|
+| < 5 | **HARD BLOCKER** — control plane upgrade will fail | CRITICAL |
+| 5–15 | **WARNING** — control plane OK, but node rolling update at risk if surge needs more IPs | MEDIUM |
+| > 15 | PASS | — |
+
+**Important context for the 5–15 warning:**
+The exact number of IPs needed during node group surge depends on:
+- Instance type (determines max ENIs and IPs per ENI)
+- VPC CNI configuration (`WARM_IP_TARGET`, `MINIMUM_IP_TARGET`, `ENABLE_PREFIX_DELEGATION`)
+- Node group `maxSurge` setting (default: 1 additional node)
+
+Do NOT report a precise "you need X IPs" number — instead flag the risk and advise the user
+to verify capacity is sufficient for their instance type and CNI config.
+
+**If subnet has < 5 IPs, report:**
+
+> **❌ Subnet IP exhaustion — control plane upgrade will fail**
+>
+> Subnet `<subnet-id>` in `<az>` has only `<N>` available IPs (CIDR: `<cidr>`).
+> EKS requires at least 5 free IPs per subnet to place control plane ENIs during an upgrade.
+>
+> **Remediation (choose one):**
+> 1. Remove unused ENIs: `aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=<subnet-id> Name=status,Values=available --query 'NetworkInterfaces[].NetworkInterfaceId'`
+> 2. Add a new subnet to the cluster: `aws eks update-cluster-config --name <cluster> --resources-vpc-config subnetIds=<existing>,<new-subnet>`
+> 3. Expand the subnet CIDR (if VPC allows)
+
+**If subnet has 5–15 IPs, report:**
+
+> **⚠️ Low subnet IP capacity — node group upgrade may stall**
+>
+> Subnet `<subnet-id>` in `<az>` has `<N>` available IPs. While this is sufficient for the
+> control plane upgrade (minimum 5), the node group rolling update launches new nodes before
+> terminating old ones. If your instance type + VPC CNI warm pool requires more IPs than are
+> available, the surge node will fail to launch.
+>
+> **Before upgrading:** Verify capacity is sufficient for your configuration, or consider
+> adding subnets / enabling VPC CNI prefix delegation to reduce per-pod IP consumption.
+
 ## Score Impact
+
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 3 (Node Readiness) and §Category 8 (AL2 Nodes).**
 
 | Finding | Deduction |
 |---------|-----------|
+| Subnet IPs < 5 (hard blocker) | 5 pts + hard blocker override (caps score ≤ 59%) |
+| Subnet IPs 5–15 (warning) | 2 pts |
 | AL2 nodes (target < 1.33) | 2-5 pts |
 | AL2 nodes (target >= 1.33) | 10-15 pts |
 | Containerd 1.x | 2 pts |

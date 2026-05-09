@@ -204,6 +204,8 @@ You MUST perform a web search to verify compatibility:
 
 ## Score Impact
 
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 4 (Add-on Compatibility) and §Category 5 (Karpenter).**
+
 | Finding | Deduction |
 |---------|-----------|
 | Critical add-on INCOMPATIBLE (vpc-cni, coredns, kube-proxy, ebs-csi) | 5 pts each |

@@ -86,7 +86,28 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 - Affects custom AMIs with this kubelet flag in bootstrap scripts
 - EKS-managed AMIs are not affected
 
+### Target > 1.35: Live Lookup Required
+
+This file does not cover breaking changes for versions beyond 1.35. If the target version
+is > 1.35, you MUST perform a live lookup before reporting "no breaking changes found."
+
+**How to check:**
+1. Search AWS docs: `search_documentation` for "EKS Kubernetes <target> breaking changes"
+2. Search AWS docs: `search_documentation` for "Kubernetes <target> removed APIs"
+3. Fetch the Kubernetes changelog: `read_documentation` on the K8s CHANGELOG for the target
+   minor version (e.g., CHANGELOG-1.36.md)
+4. Check for EKS-specific changes: `search_documentation` for "EKS <target> release notes"
+
+**If no breaking changes are found after live lookup:** Report "No breaking changes identified
+for <target> based on available documentation" with a note that the user should re-check closer
+to their upgrade date as documentation may be updated.
+
+**If live sources are unreachable:** Report "Breaking changes for <target> could not be verified —
+AWS documentation unavailable" with MEDIUM severity. Do NOT assume no breaking changes exist.
+
 ## Score Impact
+
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 1 (Breaking Changes).**
 
 | Severity | Per-item Deduction | Max Category |
 |----------|-------------------|--------------|

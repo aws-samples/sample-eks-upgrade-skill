@@ -33,13 +33,17 @@ for each deprecated_api_path found in cluster:
     if deprecated_but_still_served:  deprecated_apis_deduction += 1
 deprecated_apis_deduction = min(deprecated_apis_deduction, 20)
 
-# --- Category 3: Node Version Skew (max deduction: 20) ---
-# COUNTING UNIT: each node group (not individual nodes).
+# --- Category 3: Node Readiness (max deduction: 20) ---
+# Includes version skew AND subnet IP capacity.
+# COUNTING UNIT: each node group (skew) + each subnet (IP check).
 node_skew_deduction = 0
 for each node_group:
     skew = target_minor_version - node_group_minor_version
     if skew > 2:  node_skew_deduction += 20   # blocker — immediately caps
     if skew == 2: node_skew_deduction += 5
+for each subnet in cluster_subnets:
+    if subnet.available_ips < 5:   node_skew_deduction += 5   # hard blocker
+    elif subnet.available_ips <= 15: node_skew_deduction += 2  # warning
 node_skew_deduction = min(node_skew_deduction, 20)
 
 # --- Category 4: Add-on Compatibility (max deduction: 15) ---
@@ -83,10 +87,11 @@ if karpenter_installed and karpenter_version_incompatible_with_target:
 #   - Deployment with replicas == 1
 #   - Deployment with strategy.type == Recreate
 #
-# MEDIUM-severity risks (1 pt each, sub-cap 4 pts):
-#   - Deployment missing readinessProbe on ANY container
-#   - Deployment missing resources.requests (cpu or memory) on ANY container
-#   - Multi-replica Deployment without a matching PodDisruptionBudget
+# MEDIUM-severity risks (1 pt each unless noted, sub-cap 4 pts):
+#   - Deployment missing readinessProbe on ANY container (1 pt)
+#   - Deployment missing resources.requests (cpu or memory) on ANY container (1 pt)
+#   - Multi-replica Deployment without a matching PodDisruptionBudget (1 pt)
+#   - Drain-blocking PDB (disruptionsAllowed == 0) (2 pts each)
 #
 # IMPORTANT: If one workload has BOTH single-replica AND missing probes,
 # that is 1 HIGH (3 pts) + 1 MEDIUM (1 pt) = 4 pts for that workload.
@@ -98,6 +103,8 @@ for each workload in non_system_namespaces:
     if workload.missing_readiness_probe:      workload_medium += 1
     if workload.missing_resource_requests:    workload_medium += 1
     if workload.replicas > 1 and no_matching_pdb: workload_medium += 1
+for each pdb where disruptionsAllowed == 0:
+    workload_medium += 2                      # drain-blocking PDB
 workload_high = min(workload_high, 8)
 workload_medium = min(workload_medium, 4)
 workload_deduction = min(workload_high + workload_medium, 10)
@@ -134,12 +141,50 @@ for each behavioral_change applicable to target:
     if severity == LOW:    behavioral_deduction += 1
 behavioral_deduction = min(behavioral_deduction, 5)
 
+# --- Category 10: Unsupported Version (max deduction: 15) ---
+# TRIGGER: cluster's current version has passed its Extended Support Until date.
+# This is a binary check — either the version is unsupported or it isn't.
+# NOTE: If the target version does not exist on EKS, the assessment is ABORTED
+# in Step 1.0 (version-validation.md) — no score is produced at all.
+unsupported_deduction = 0
+if cluster_version_extended_support_end_date < assessment_date:
+    unsupported_deduction = 15
+
 # --- Final Score ---
 total_deductions = (breaking_changes_deduction + deprecated_apis_deduction
                     + node_skew_deduction + addon_deduction + karpenter_deduction
                     + workload_deduction + insights_deduction + al2_deduction
-                    + behavioral_deduction)
+                    + behavioral_deduction + unsupported_deduction)
 score = max(0, 100 - total_deductions)
+
+# --- Hard Blocker Override (apply AFTER arithmetic) ---
+# If ANY hard blocker is present, the upgrade CANNOT proceed safely.
+# Cap score at 59 (NOT READY) regardless of the arithmetic result.
+#
+# Hard blockers (exhaustive list):
+#   1. Node version skew > 2 (K8s API server rejects the upgrade)
+#   2. Karpenter version incompatible with target (node provisioning breaks)
+#   3. Critical add-on INCOMPATIBLE with target version (networking/storage breaks)
+#   4. Critical add-on DEGRADED or FAILED (node drain stalls — volumes, DNS, or
+#      networking broken during reschedule)
+#   5. API removed in target version AND actively used in cluster (workloads fail)
+#   6. Cluster status != ACTIVE (EKS API rejects update-cluster-version)
+#   7. AL2-only node groups AND target >= 1.33 (no AL2 AMI available for target)
+#   8. Any cluster subnet has < 5 available IPs (EKS API rejects update-cluster-version)
+#
+# NOTE: "Critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
+has_hard_blocker = False
+if node_skew_any_group > 2:                           has_hard_blocker = True
+if karpenter_installed and karpenter_incompatible:    has_hard_blocker = True
+if any critical_addon.verdict == "INCOMPATIBLE":      has_hard_blocker = True
+if any critical_addon.status in [DEGRADED, FAILED]:   has_hard_blocker = True
+if any api_removed_in_target_and_in_use:              has_hard_blocker = True
+if cluster_status != "ACTIVE":                        has_hard_blocker = True
+if al2_only_node_groups and target >= 1.33:           has_hard_blocker = True
+if any subnet.available_ips < 5:                      has_hard_blocker = True
+
+if has_hard_blocker:
+    score = min(score, 59)
 ```
 
 ### 1.2 — Score Interpretation
@@ -172,12 +217,20 @@ Cluster: `example-cluster`, upgrading 1.30 → 1.31
 - MEDIUM sub-total: 1+1+1+1+1+1+1+1+1+1 = 10 → capped at 4
 - Workload total: 8+4 = 12 → capped at 10
 
-**Score:**
+**Score (arithmetic):**
 ```
 100 - 0 (breaking) - 2 (deprecated) - 0 (skew) - 5 (addon) - 0 (karpenter)
-    - 10 (workload) - 2 (insights) - 0 (AL2) - 0 (behavioral)
-= 100 - 19 = 81% → GOOD
+    - 10 (workload) - 2 (insights) - 0 (AL2) - 0 (behavioral) - 0 (unsupported)
+= 100 - 19 = 81%
 ```
+
+**Hard blocker override:**
+```
+EBS CSI driver DEGRADED → critical add-on DEGRADED → has_hard_blocker = True
+score = min(81, 59) = 59% → NOT READY
+```
+
+**Final score: 59% — NOT READY** (hard blocker: critical add-on DEGRADED)
 
 ## Step 2: Build Master Finding List (MANDATORY — do this BEFORE calculating the score)
 
@@ -298,13 +351,14 @@ it doesn't precede them.
 |----------|--------|-----------|---------|
 | Breaking Changes | ✅/⚠️/❌ | -X pts | [summary] |
 | Deprecated APIs | ✅/⚠️/❌ | -X pts | [summary] |
-| Node Version Skew | ✅/⚠️/❌ | -X pts | [summary] |
+| Node Readiness | ✅/⚠️/❌ | -X pts | [summary] |
 | Add-on Compatibility | ✅/⚠️/❌ | -X pts | [summary] |
 | Karpenter | ✅/⚠️/❌/N/A | -X pts | [summary] |
 | Workload Risks | ✅/⚠️/❌ | -X pts | [summary] |
 | AWS Upgrade Insights | ✅/⚠️/❌ | -X pts | [summary] |
 | AL2 / AMI | ✅/⚠️/❌ | -X pts | [summary] |
 | Behavioral Changes | ✅/⚠️/❌ | -X pts | [summary] |
+| Unsupported Version | ✅/❌/N/A | -X pts | [summary — omit row if version is supported] |
 | **Total** | | **-X pts** | **Score: XX%** |
 
 ---

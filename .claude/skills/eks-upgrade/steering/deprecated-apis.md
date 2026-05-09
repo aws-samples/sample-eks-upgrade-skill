@@ -60,7 +60,9 @@ For each finding, report:
 
 ## Score Impact
 
+> **Canonical scoring is defined in `steering/report-generation.md` §Category 2 (Deprecated APIs).**
+
 | Finding | Deduction |
 |---------|-----------|
-| API removed in target version | 5 pts per API (max 20) |
-| API deprecated but available | 1 pt per API (max 5) |
+| API removed in target version | 5 pts per API path (max 20) |
+| API deprecated but available | 1 pt per API path (max 5) |

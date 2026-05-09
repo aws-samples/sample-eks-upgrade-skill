@@ -33,12 +33,17 @@ The skill calculates a weighted readiness score:
 |----------|--------------|-----------|
 | Breaking Changes | 25 pts | Highest risk — can break apps |
 | Deprecated APIs | 20 pts | Actionable, fixable pre-upgrade |
-| Node Version Skew | 20 pts | Can block upgrade entirely |
+| Node Readiness (skew + subnet IPs) | 20 pts | Can block upgrade entirely |
+| Unsupported Version | 15 pts | No security patches, urgent upgrade needed |
 | Add-on Compatibility | 15 pts | Critical > optional add-ons |
 | Karpenter | 10 pts | Only if installed |
 | Workload Risks | 10 pts | Best-practice, not blockers |
 | AWS Upgrade Insights | 10 pts | Official AWS checks |
 | AL2 Nodes / Behavioral | 10 pts | Informational |
+
+**Hard Blocker Override:** If any hard blocker is detected (e.g., incompatible Karpenter, critical
+add-on DEGRADED, subnet IPs < 5, cluster not ACTIVE), the score is capped at ≤ 59% (NOT READY)
+regardless of other findings. See `steering/report-generation.md` for the full list.
 
 **Score Interpretation:**
 - 90-100: **READY** — Safe to proceed
@@ -107,6 +112,14 @@ Wait for the user to resolve the issue.
 **Action 2 — Describe the selected cluster**
 
 Run `aws eks describe-cluster --name <cluster>` and show: cluster name, Kubernetes version, platform version, region, status, account ID.
+
+**Action 2b — Validate cluster status**
+
+Check the `status` field from the cluster description. If status is NOT `ACTIVE`:
+- **CREATING/UPDATING/DELETING** → STOP. Show: "Cluster is currently in `<status>` state. The EKS API will reject an upgrade request. Wait for the operation to complete, then re-run this assessment."
+- **FAILED** → STOP. Show: "Cluster is in FAILED state. This is a hard blocker — the cluster must be recovered before an upgrade can be attempted. Contact AWS Support if the cluster is stuck in FAILED."
+
+Do NOT proceed with the assessment if cluster status is not ACTIVE. This is a hard blocker (see report-generation.md).
 
 **Action 3 — Validate permissions**
 
