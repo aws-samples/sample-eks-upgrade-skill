@@ -65,6 +65,17 @@ Filter-then-decide pipelines drop the line entirely as soon as any benign
 apiVersion matches. Walk the full output line by line and check each
 `manager=apiVersion` pair against the deprecation table in Step 3 instead.
 
+**Anti-pattern — do not substitute `-o yaml` or `-o json`.**
+
+```bash
+# WRONG — kubectl 1.21+ hides managedFields from -o yaml / -o json by default,
+# so this scan returns false negatives.
+kubectl get <kind> -A -o yaml | grep apiVersion
+```
+
+Use the `-o jsonpath` form above. It accesses `managedFields` directly and
+is not affected by the default-hide behavior.
+
 ### Step 3: Check for Removed APIs by Target Version
 
 | Target | Removed API | Replacement |
