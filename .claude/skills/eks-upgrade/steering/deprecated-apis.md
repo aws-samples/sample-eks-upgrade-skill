@@ -52,6 +52,19 @@ The `manager` portion identifies which writer used each apiVersion (e.g.,
 `kubectl-client-side-apply`, `argocd-application-controller`, controller
 names) — this points to where the source manifest needs to be updated.
 
+**Anti-pattern — do not pre-filter with naïve substring greps.**
+
+```bash
+# WRONG — `v1` is a prefix of `v1beta3`, so `grep -v` strips both lines.
+... | grep -v "flowcontrol.apiserver.k8s.io/v1"
+```
+
+A single resource often has multiple `manager=apiVersion` entries on the
+same line (e.g., a controller writing `v1` plus the user writing `v1beta3`).
+Filter-then-decide pipelines drop the line entirely as soon as any benign
+apiVersion matches. Walk the full output line by line and check each
+`manager=apiVersion` pair against the deprecation table in Step 3 instead.
+
 ### Step 3: Check for Removed APIs by Target Version
 
 | Target | Removed API | Replacement |
