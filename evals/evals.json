@@ -61,6 +61,30 @@
         {"name": "no_hard_blocker_override", "check": "score > 59"},
         {"name": "recommended_actions_populated", "check": "Recommended Actions section is not empty/placeholder"}
       ]
+    },
+    {
+      "id": 6,
+      "name": "k8s-136-selfmanaged-containerd-blocker",
+      "prompt_file": "scenarios/06-k8s-136-selfmanaged-containerd.md",
+      "expected_output": "Score ≤59% NOT READY. Self-managed containerd 1.x on target 1.36 is a hard blocker; gitRepo volume flagged HIGH.",
+      "assertions": [
+        {"name": "score_capped_59", "check": "score <= 59"},
+        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
+        {"name": "containerd_in_blockers", "check": "Blockers section mentions containerd"},
+        {"name": "gitrepo_flagged", "check": "report mentions gitRepo volume as HIGH"}
+      ]
+    },
+    {
+      "id": 7,
+      "name": "k8s-136-managed-containerd-not-blocker",
+      "prompt_file": "scenarios/07-k8s-136-managed-containerd.md",
+      "expected_output": "Score 98% READY. Managed containerd 1.x on target 1.36 is INFO only, NOT a hard blocker.",
+      "assertions": [
+        {"name": "score_is_98", "check": "score == 98"},
+        {"name": "rating_ready", "check": "report contains 'READY'"},
+        {"name": "no_hard_blocker_override", "check": "score > 59"},
+        {"name": "containerd_not_blocker", "check": "containerd noted as INFO/auto-handled, not in Blockers"}
+      ]
     }
   ]
 }
