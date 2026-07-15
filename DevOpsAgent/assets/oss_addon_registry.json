@@ -1,7 +1,7 @@
 {
   "_comment": "Registry of common OSS add-ons found in EKS clusters. This file intentionally does NOT contain compatibility data — that lives upstream and goes stale the moment it's copied. Instead, it provides: (1) identifiers to detect the add-on in a cluster, and (2) authoritative URLs where the skill should fetch live compatibility information. Unknown add-ons should be handled via web search + UNKNOWN reporting, not guessed.",
   "_schema_version": "2.0",
-  "_usage": "For each discovered add-on, look it up here by matching app_names/helm_charts/container_images. Then fetch compatibility_url (primary) and releases_url (fallback) using webFetch. Do NOT infer compatibility from this file.",
+  "_usage": "For each discovered add-on, look it up here by matching app_names/helm_charts/container_images. Then fetch compatibility_url (primary) and releases_url (fallback) using web fetch capabilities. Do NOT infer compatibility from this file.",
   "addons": [
     {
       "name": "istio",

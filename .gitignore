@@ -18,3 +18,7 @@ EKS-Upgrade-Assessment-*
 # Testing
 .hypothesis/
 .pytest_cache/
+
+# Packaged DevOps Agent skill zips
+eks-upgrade-check-skill.zip
+*-skill.zip
