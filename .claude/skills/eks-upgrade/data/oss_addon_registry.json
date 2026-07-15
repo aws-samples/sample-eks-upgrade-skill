@@ -34,7 +34,7 @@
       },
       "compatibility_url": "https://github.com/kubernetes/ingress-nginx/blob/main/README.md#supported-versions-table",
       "releases_url": "https://github.com/kubernetes/ingress-nginx/releases",
-      "notes": "Project retired March 2026. Recommend migration to InGate or aws-load-balancer-controller. Flag any cluster using ingress-nginx as HIGH severity regardless of current version compatibility."
+      "notes": "Project retired March 2026. Recommend migration to Gateway API implementations (e.g., Envoy Gateway, AWS Gateway API Controller) or aws-load-balancer-controller. Flag any cluster using ingress-nginx as HIGH severity regardless of current version compatibility."
     },
     {
       "name": "kube-prometheus-stack",
@@ -138,8 +138,8 @@
         "helm_charts": ["velero"],
         "container_images": ["velero/velero"]
       },
-      "compatibility_url": "https://github.com/vmware-tanzu/velero#velero-compatibility-matrix",
-      "releases_url": "https://github.com/vmware-tanzu/velero/releases"
+      "compatibility_url": "https://github.com/velero-io/velero#velero-compatibility-matrix",
+      "releases_url": "https://github.com/velero-io/velero/releases"
     },
     {
       "name": "keda",

@@ -43,38 +43,30 @@ manifests originally applied under a deprecated apiVersion. `managedFields`
 preserves the apiVersion used by every writer (kubectl, controllers, Argo CD,
 Flux, Helm), so this scan covers all configuration sources.
 
-```bash
-kubectl get <kind> --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{"\t"}{range .metadata.managedFields[*]}{.manager}{"="}{.apiVersion}{","}{end}{"\n"}{end}'
-```
-
-Output is `namespace/name<TAB>manager1=apiVersion1,manager2=apiVersion2,...`.
-The `manager` portion identifies which writer used each apiVersion (e.g.,
+**How to scan:** List each resource kind across all namespaces via the Kubernetes
+API and read `metadata.managedFields[]` from every returned object. Each entry
+contains a `manager` (the writer) and an `apiVersion` (the version that writer
+used). For each object, record `namespace/name` plus every `manager=apiVersion`
+pair. The `manager` value identifies which writer used each apiVersion (e.g.,
 `kubectl-client-side-apply`, `argocd-application-controller`, controller
 names) — this points to where the source manifest needs to be updated.
 
-**Anti-pattern — do not pre-filter with naïve substring greps.**
+**Anti-pattern — do not pre-filter with naïve substring matching.**
 
-```bash
-# WRONG — `v1` is a prefix of `v1beta3`, so `grep -v` strips both lines.
-... | grep -v "flowcontrol.apiserver.k8s.io/v1"
-```
+For example, excluding every object whose managedFields text contains
+`flowcontrol.apiserver.k8s.io/v1` also excludes `v1beta3` entries, because `v1`
+is a prefix of `v1beta3`. A single resource often has multiple
+`manager=apiVersion` entries (e.g., a controller writing `v1` plus the user
+writing `v1beta3`), and filter-then-decide logic drops the object entirely as
+soon as any benign apiVersion matches. Walk every object and check each
+`manager=apiVersion` pair individually against the deprecation table in Step 3.
 
-A single resource often has multiple `manager=apiVersion` entries on the
-same line (e.g., a controller writing `v1` plus the user writing `v1beta3`).
-Filter-then-decide pipelines drop the line entirely as soon as any benign
-apiVersion matches. Walk the full output line by line and check each
-`manager=apiVersion` pair against the deprecation table in Step 3 instead.
+**Anti-pattern — do not rely on client-rendered output that hides managedFields.**
 
-**Anti-pattern — do not substitute `-o yaml` or `-o json`.**
-
-```bash
-# WRONG — kubectl 1.21+ hides managedFields from -o yaml / -o json by default,
-# so this scan returns false negatives.
-kubectl get <kind> -A -o yaml | grep apiVersion
-```
-
-Use the `-o jsonpath` form above. It accesses `managedFields` directly and
-is not affected by the default-hide behavior.
+The raw Kubernetes API response includes `metadata.managedFields`. Client tools
+may strip it from rendered output (kubectl 1.21+ hides managedFields from
+`-o yaml` / `-o json` by default), producing false negatives. Always read
+`managedFields` directly from the API object, not from rendered/summarized views.
 
 ### Step 3: Check for Removed APIs by Target Version
 
@@ -103,12 +95,9 @@ resource to be a real finding:
 Apply these two deterministic tests to every FlowSchema / PriorityLevelConfiguration
 surfaced by Step 2a or Step 2b:
 
-**Test 1 — Stored apiVersion (authoritative).** Read the object's live `apiVersion`
-(the version the API server actually stores/serves):
-
-```bash
-kubectl get flowschema <name> -o jsonpath='{.apiVersion}{"\n"}'
-```
+**Test 1 — Stored apiVersion (authoritative).** Get the object via the Kubernetes
+API and read its top-level `apiVersion` field (the version the API server actually
+stores/serves):
 
 - If the stored `apiVersion` is **already `...k8s.io/v1`** (the target-safe version) →
   **EXCLUDE.** There is nothing to migrate; a removed version in `managedFields` is

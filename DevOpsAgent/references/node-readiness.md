@@ -104,12 +104,9 @@ do NOT — their 1.36 kubelet will fail to run.
 **How to check:**
 1. Get the cluster subnet IDs from the cluster description (already retrieved in pre-flight
    Action 2 — `resourcesVpcConfig.subnetIds`).
-2. Run:
-   ```bash
-   aws ec2 describe-subnets --subnet-ids <subnet-id-1> <subnet-id-2> ... \
-     --query 'Subnets[].{SubnetId:SubnetId,AZ:AvailabilityZone,AvailableIPs:AvailableIpAddressCount,CIDR:CidrBlock}' \
-     --output table
-   ```
+2. Call the EC2 `DescribeSubnets` API with `SubnetIds: [<subnet-id-1>, <subnet-id-2>, ...]`
+   and record, for each subnet: `SubnetId`, `AvailabilityZone`,
+   `AvailableIpAddressCount`, and `CidrBlock`.
 3. For each subnet, evaluate `AvailableIpAddressCount` against thresholds.
 
 **Thresholds:**
@@ -156,13 +153,18 @@ to verify capacity is sufficient for their instance type and CNI config.
 ## Score Impact
 
 > **Canonical scoring is defined in `references/report-generation.md` §Category 3 (Node Readiness) and §Category 8 (AL2 Nodes).**
+> AL2 findings for target >= 1.33 deduct under TWO separate categories: the HIGH
+> breaking-change finding is scored under Category 1 (Breaking Changes), and the
+> node-count deduction under Category 8 (capped at 5 pts). Do NOT combine them into
+> a single deduction under one category.
 
 | Finding | Deduction |
 |---------|-----------|
 | Subnet IPs < 5 (hard blocker) | 5 pts + hard blocker override (caps score ≤ 59%) |
 | Subnet IPs 5–15 (warning) | 2 pts |
-| AL2 nodes (target < 1.33) | 2-5 pts |
-| AL2 nodes (target >= 1.33) | 10-15 pts |
+| AL2 nodes (target < 1.33) — Node count (Category 8) | 2-5 pts (max 5) |
+| AL2 nodes (target >= 1.33) — Breaking Change "AL2 AMI Not Available" (Category 1) | 10 pts (HIGH) |
+| AL2 nodes (target >= 1.33) — Node count (Category 8) | 2-5 pts (max 5) |
 | Containerd 1.x (target < 1.36, or managed node on any target) | 2 pts |
 | Containerd 1.x on self-managed/custom AMI (target >= 1.36) | 5 pts + hard blocker override (caps score ≤ 59%) |
 | Self-managed nodes | 3 pts |

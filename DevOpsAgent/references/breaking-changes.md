@@ -25,6 +25,17 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 - Look at FlowSchema and PriorityLevelConfiguration resources
 - If found → MEDIUM severity. Update to `flowcontrol.apiserver.k8s.io/v1`
 
+### Target >= 1.30: AppArmor Annotations Deprecated
+
+**Check:** Scan pod templates in deployments/daemonsets/statefulsets for
+`container.apparmor.security.beta.kubernetes.io/*` annotations
+- If found → MEDIUM severity. AppArmor itself is GA and fully supported — only the
+  annotation mechanism is deprecated, superseded by the native
+  `securityContext.appArmorProfile` field (GA in K8s 1.30).
+- Remediation: Replace the annotations with the `appArmorProfile` field in
+  `securityContext` (pod- or container-level). Do NOT migrate to seccomp — seccomp
+  and AppArmor are complementary mechanisms, not replacements.
+
 ### Target >= 1.32: FlowSchema API v1beta3 Removed
 
 **Check:** Scan for `apiVersion: flowcontrol.apiserver.k8s.io/v1beta3`
@@ -42,7 +53,8 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 
 **Always flag** (MEDIUM severity) — affects all clusters upgrading to 1.32+.
 - Anonymous requests only allowed to /healthz, /livez, /readyz
-- Check: `kubectl get clusterrolebindings -o json | jq '.items[] | select(.subjects[]?.name=="system:unauthenticated")'`
+- Check: List ClusterRoleBindings via the Kubernetes API and flag any whose `subjects[]`
+  include `system:unauthenticated`
 - Impact: Monitoring tools or LB health checks hitting non-health endpoints will get 401
 - **Scoring home:** scored under Breaking Changes (Category 1, MEDIUM = 4 pts). Do
   NOT also count it under Behavioral Changes (Category 9) — it has exactly one home.
@@ -58,12 +70,6 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 **Check:** List nodes → inspect `status.nodeInfo.kernelVersion` for `amzn2` or `osImage` for `Amazon Linux 2`
 - If AL2 nodes found → HIGH severity. Cannot create new AL2 node groups for 1.33+
 - Remediation: Migrate to AL2023 or Bottlerocket BEFORE upgrading control plane
-
-### Target >= 1.34: AppArmor Deprecated
-
-**Check:** Scan deployments/daemonsets/statefulsets for AppArmor annotations in pod template
-- If found → MEDIUM severity
-- Remediation: Migrate to seccomp profiles
 
 ### Target >= 1.35: Cgroup v1 Support Removed
 
