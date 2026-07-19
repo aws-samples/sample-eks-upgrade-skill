@@ -16,14 +16,25 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 ### Target >= 1.25: PodSecurityPolicy Removed
 
 **Check:** List PodSecurityPolicy resources via Kubernetes API
-- If PSPs exist → HIGH severity. PSPs will cease to exist after upgrade.
+- Apply the writer-identity filter in `deprecated-apis.md` Step 3b FIRST. A PSP is a real
+  finding only if a user tool (kubectl/helm/argocd/flux) wrote it in `managedFields`; objects
+  whose only trace comes from internal controllers do NOT count.
+- If a real (user-managed) PSP exists → HIGH severity. PSPs will cease to exist after upgrade.
 - Remediation: Migrate to Pod Security Standards (PSS) by labeling namespaces: `kubectl label namespace <ns> pod-security.kubernetes.io/enforce=restricted`
+- **Scoring home:** this is a removed API — scored under Deprecated APIs (Category 2), NOT
+  here. Do NOT also deduct for it under Breaking Changes — that would double-count.
 
 ### Target >= 1.29: FlowSchema API v1beta2 Removed
 
 **Check:** Scan cluster resources for `apiVersion: flowcontrol.apiserver.k8s.io/v1beta2`
 - Look at FlowSchema and PriorityLevelConfiguration resources
-- If found → MEDIUM severity. Update to `flowcontrol.apiserver.k8s.io/v1`
+- Apply the writer-identity filter in `deprecated-apis.md` Step 3b FIRST. An object is a real
+  finding only if a user tool (kubectl/helm/argocd/flux) wrote v1beta2 in `managedFields`.
+  Objects whose only v1beta2 trace comes from internal APF controllers
+  (`api-priority-and-fairness-config-*`, `eks-internal`) are false positives and do NOT count.
+- If a real (user-managed) object is found → HIGH severity (removed API in use). Update to `flowcontrol.apiserver.k8s.io/v1`
+- **Scoring home:** this is a removed API — scored under Deprecated APIs (Category 2), NOT
+  here. Do NOT also deduct for it under Breaking Changes — that would double-count.
 
 ### Target >= 1.30: AppArmor Annotations Deprecated
 

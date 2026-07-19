@@ -71,9 +71,9 @@ for each distinct_kubelet_minor_version across all nodes (MNG union nodeInfo):
 for each subnet in cluster_subnets:
     if subnet.available_ips < 5:     node_skew_deduction += 2   # single low subnet — warning (always applies)
     elif subnet.available_ips <= 15: node_skew_deduction += 2   # warning
-# Hard blocker ONLY when the candidate control-plane subnets COLLECTIVELY cannot place
-# the control-plane ENIs (placement insufficiency) — a single low subnet among healthy
-# subnets is a warning, not a blocker. Definition:
+# Hard blocker ONLY when the cluster subnets COLLECTIVELY cannot place the control-plane
+# ENIs (placement insufficiency) — a single low subnet among healthy subnets is a
+# warning, not a blocker. Definition:
 #   candidate_subnets_collectively_cannot_place_enis
 #     = sum(AvailableIpAddressCount) across ALL cluster subnets < 5
 # (e.g. subnets of 3 + 12 IPs → sum 15 ≥ 5 → NO blocker; the 3-IP subnet is a +2 warning only.)
@@ -182,8 +182,12 @@ workload_deduction = min(workload_high + workload_medium, 10)
 #   WARNING → 2 pts
 #   PASSING → 0 pts
 #   UNKNOWN → 0 pts (LOW severity — report under Informational Findings, no deduction)
+# SUPPRESSION (no double-count): if the insight's subject is already scored in another
+# category (e.g. a deprecated-API WARNING already counted in Cat 2, or an add-on insight
+# already counted in Cat 4), score it 0 here and keep it as confirmation evidence only.
 insights_deduction = 0
 for each insight:
+    if insight.subject already scored in another category:  continue   # 0 pts — confirmation only
     if insight.status == "ERROR":    insights_deduction += 5
     if insight.status == "WARNING":  insights_deduction += 2
 insights_deduction = min(insights_deduction, 10)
@@ -277,7 +281,7 @@ Cluster: `example-cluster`, upgrading 1.30 → 1.31
 
 **Findings:**
 - EBS CSI driver DEGRADED (IAM issue) → critical add-on, status DEGRADED → 5 pts
-- 17 FlowSchema resources using `flowcontrol.apiserver.k8s.io/v1beta3` (2 API paths: flowschemas + prioritylevelconfigurations, deprecated but available in 1.31) → 1 + 1 = 2 pts
+- 17 FlowSchema resources using `flowcontrol.apiserver.k8s.io/v1beta3` (2 API paths: flowschemas + prioritylevelconfigurations, deprecated but available in 1.31). Step 3b writer-identity scan shows the only v1beta3 writers are internal APF controllers (`api-priority-and-fairness-config-*`) — no user tool wrote them → **false positives, 0 pts (informational only)**
 - 1 AWS Insight WARNING (deprecated APIs for v1.32) → 2 pts
 - `legacy-app`: 1 replica (HIGH=3) + Recreate strategy (HIGH=3) + missing probes (MED=1) + missing requests (MED=1) = 8 pts
 - `single-replica-app`: 1 replica (HIGH=3) + missing probes (MED=1) + missing requests (MED=1) = 5 pts
@@ -288,20 +292,21 @@ Cluster: `example-cluster`, upgrading 1.30 → 1.31
 
 **Workload risk calculation:**
 - HIGH sub-total: 3+3+3+3 = 12 → capped at 8
-- MEDIUM sub-total: 1+1+1+1+1+1+1+1+1+1 = 10 → capped at 4
+- MEDIUM sub-total: 1+1+1+1+1+1+1+1+1 = 9 → capped at 4
 - Workload total: 8+4 = 12 → capped at 10
 
 **Score (arithmetic):**
 ```
-100 - 0 (breaking) - 2 (deprecated) - 0 (skew) - 5 (addon) - 0 (karpenter)
+100 - 0 (breaking) - 0 (deprecated: v1beta3 is APF-controller-written, 0 under Step 3b)
+    - 0 (skew) - 5 (addon) - 0 (karpenter)
     - 10 (workload) - 2 (insights) - 0 (AL2) - 0 (behavioral) - 0 (unsupported)
-= 100 - 19 = 81%
+= 100 - 17 = 83%
 ```
 
 **Hard blocker override:**
 ```
 EBS CSI driver DEGRADED → critical add-on DEGRADED → has_hard_blocker = True
-score = min(81, 59) = 59% → NOT READY
+score = min(83, 59) = 59% → NOT READY
 ```
 
 **Final score: 59% — NOT READY** (hard blocker: critical add-on DEGRADED)
@@ -313,8 +318,8 @@ Before calculating the score, you MUST compile a complete finding table. This ta
 ```
 | # | Category | Finding | Counting Unit | Severity | Pts | Rule Applied |
 |---|----------|---------|---------------|----------|-----|--------------|
-| 1 | Deprecated APIs | flowschemas v1beta3 | API path | LOW | 1 | deprecated_but_still_served |
-| 2 | Deprecated APIs | prioritylevelconfigurations v1beta3 | API path | LOW | 1 | deprecated_but_still_served |
+| 1 | Deprecated APIs | flowschemas v1beta3 (APF-controller-written) | API path | INFO | 0 | Step 3b exclusion — internal writer, not counted |
+| 2 | Deprecated APIs | prioritylevelconfigurations v1beta3 (APF-controller-written) | API path | INFO | 0 | Step 3b exclusion — internal writer, not counted |
 | 3 | Add-on | aws-ebs-csi-driver DEGRADED | add-on | HIGH | 5 | critical addon DEGRADED |
 | ... | ... | ... | ... | ... | ... | ... |
 ```

@@ -30,8 +30,14 @@ For any insight with status other than `PASSING`:
 
 AWS Upgrade Insights often overlap with findings from other sections (deprecated APIs, add-on compatibility). When reporting:
 - Note if an insight confirms a finding from another section
-- Do NOT double-count in the score — the insight score is separate from other categories
-- Highlight any insights that reveal issues NOT caught by other checks
+- Do NOT double-count in the score. Match each insight to a category finding by **subject key**:
+  the deprecated API group/version/resource (e.g. `flowcontrol.apiserver.k8s.io/v1beta3`) for
+  Category 2, or the add-on name (e.g. `vpc-cni`) for Category 4. When an insight's subject key
+  matches a finding **already scored in that category**, **suppress the insight's points** (score
+  it 0) and keep the insight only as confirmation evidence in the report — do NOT add its
+  WARNING/ERROR points on top of the category that already owns the finding.
+- Only insights that reveal issues NOT caught by any other check contribute points under
+  Category 7. Highlight those.
 
 ## Important Context for Users
 

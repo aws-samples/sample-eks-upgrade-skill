@@ -55,10 +55,10 @@
       "id": 5,
       "name": "multiple-medium-no-blockers",
       "prompt_file": "scenarios/05-medium-issues.md",
-      "expected_output": "Score 78% FAIR, no hard blocker override, issues in Recommended Actions",
+      "expected_output": "Score 86% GOOD, no hard blocker override, issues in Recommended Actions",
       "assertions": [
-        {"name": "score_is_78", "check": "score == 78"},
-        {"name": "rating_fair_or_risky", "check": "report contains 'FAIR' or 'RISKY'"},
+        {"name": "score_is_86", "check": "score == 86"},
+        {"name": "rating_good", "check": "report contains 'GOOD'"},
         {"name": "no_hard_blocker_override", "check": "score > 59"},
         {"name": "recommended_actions_populated", "check": "Recommended Actions section is not empty/placeholder"}
       ]

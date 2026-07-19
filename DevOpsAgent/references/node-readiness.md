@@ -75,9 +75,10 @@ upgrade, so it is scored HIGH but is NOT a hard blocker.
 - Any node on containerd 1.x, target == 1.35 → WARN (last version supporting containerd 1.x;
   the next version, 1.36, requires 2.0+)
 - Any node on containerd 1.x, target >= 1.36:
-  - **Managed node group / Bottlerocket** → INFO. Upgrading the node group to 1.36 replaces the
-    AMI and pulls containerd 2.0+ automatically. No manual action, but call it out so the user
-    knows the runtime jump happens during node rotation.
+  - **Managed node group / Bottlerocket** → INFO (auto-handled), scored +2 (warning tier — not a
+    hard blocker). Upgrading the node group to 1.36 replaces the AMI and pulls containerd 2.0+
+    automatically. No manual action, but call it out so the user knows the runtime jump happens
+    during node rotation.
   - **Self-managed / custom AMI** → FAIL (HIGH) — outside containerd's tested matrix. The 1.36
     kubelet is validated against containerd 2.x; running it on containerd 1.x is unsupported.
     The AMI must be rebuilt with containerd 2.0+ BEFORE upgrading the node. Scored +5 under
