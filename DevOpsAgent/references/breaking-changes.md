@@ -39,11 +39,11 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 ### Target >= 1.32: FlowSchema API v1beta3 Removed
 
 **Check:** Scan for `apiVersion: flowcontrol.apiserver.k8s.io/v1beta3`
-- Apply the two-test filter in `deprecated-apis.md` Step 3b FIRST. An object is a
-  real finding only if its stored (live) `apiVersion` is a removed version OR a user
-  tool (kubectl/helm/argocd/flux) wrote v1beta3. Objects already stored on `v1` whose
-  only v1beta3 trace comes from internal APF controllers (`api-priority-and-fairness-config-*`,
-  `eks-internal`) are false positives and do NOT count.
+- Apply the writer-identity filter in `deprecated-apis.md` Step 3b FIRST. An object is
+  a real finding only if a user tool (kubectl/helm/argocd/flux) wrote v1beta3 in
+  `managedFields`. Objects whose only v1beta3 trace comes from internal APF controllers
+  (`api-priority-and-fairness-config-*`, `eks-internal`) are false positives and do
+  NOT count.
 - If a real (user-managed, not-yet-migrated) v1beta3 object is found → HIGH severity.
   Update to `flowcontrol.apiserver.k8s.io/v1`.
 - **Scoring home:** this finding is scored under Deprecated APIs (Category 2), NOT
@@ -73,16 +73,25 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 
 ### Target >= 1.35: Cgroup v1 Support Removed
 
-**Always flag** (HIGH severity) for 1.35 targets.
+**Conditional** — flag (HIGH severity) ONLY if cgroup v1 nodes are detected. Applies
+to any target >= 1.35.
 - kubelet refuses to start on cgroup v1 nodes unless `failCgroupV1=false`
 - AL2 uses cgroup v1 by default; AL2023 and Bottlerocket use cgroup v2
-- Check node OS to determine impact
+- **Check:** inspect node OS images — AL2 nodes (osImage contains "Amazon Linux 2",
+  not "2023") imply cgroup v1; AL2023/Bottlerocket nodes are cgroup v2. If NO cgroup
+  v1 nodes are present, do NOT flag and do NOT deduct — record under Informational
+  Findings only.
+- **Detection caveat:** this keys on the osImage "Amazon Linux 2" string as a
+  conservative proxy for cgroup v1 — the actual cgroup version is not read from the
+  node. An AL2 node pinned to cgroup v2 over-flags; a non-AL distro pinned to v1 is missed.
 
 ### Target >= 1.35: Containerd 1.x End of Support
 
 **Check:** List nodes → inspect `status.nodeInfo.containerRuntimeVersion`
 - If any node shows containerd 1.x → MEDIUM severity
 - Last release supporting containerd 1.x; next version requires 2.0+
+- **Scoring home:** containerd 1.x is scored under Node Readiness (Category 3), NOT
+  here. Do NOT also deduct for it under Breaking Changes — that would double-count.
 
 ### Target >= 1.35: Ingress NGINX Retired
 
@@ -98,9 +107,15 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 
 ### Target >= 1.35: --pod-infra-container-image Flag Removed
 
-**Always flag** (LOW severity) for 1.35 targets.
+**Conditional** — flag (LOW severity) ONLY if custom-AMI / self-managed nodes are
+detected (reuse the classification from node-readiness.md check 5.4). Applies to any
+target >= 1.35.
 - Affects custom AMIs with this kubelet flag in bootstrap scripts
-- EKS-managed AMIs are not affected
+- EKS-managed AMIs are not affected — if the cluster has no self-managed/custom-AMI
+  nodes, do NOT flag and do NOT deduct
+- **Detection caveat:** this detects the *presence* of self-managed/custom-AMI nodes,
+  not whether the `--pod-infra-container-image` flag is actually set — the kubelet flag
+  is not readable via the API. Presence is a conservative proxy.
 
 ### Target >= 1.36: IPVS Proxy Mode Removed
 

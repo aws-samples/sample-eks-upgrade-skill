@@ -86,25 +86,21 @@ may strip it from rendered output (kubectl 1.21+ hides managedFields from
 ### Step 3b: Filter Out Already-Migrated / System-Written Resources (deterministic rule)
 
 A `v1beta3` (or other removed-version) string appearing in `metadata.managedFields[]`
-does NOT by itself mean a resource needs migrating. Two things must both be true for a
-resource to be a real finding:
+does NOT by itself mean a resource needs migrating. The deciding question is **who
+wrote the removed version** — a resource is a real finding only if a
+**user-controlled writer** actually wrote it.
 
-1. The resource is **not already stored on a safe version**, and
-2. A **user-controlled writer** actually wrote the removed version.
+> **Why not compare served vs stored apiVersion?** Reading an object's top-level
+> `apiVersion` field back from the API cannot distinguish a migrated object from an
+> unmigrated one: the API server serves every object at the version you request, so
+> the read-back value reflects the request, not the source manifest. On 1.30+
+> control planes a `v1` read-back can hide a manifest still applied as `v1beta3`.
+> Do NOT use served/stored apiVersion as a per-object signal.
 
-Apply these two deterministic tests to every FlowSchema / PriorityLevelConfiguration
+Apply this deterministic test to every FlowSchema / PriorityLevelConfiguration
 surfaced by Step 2a or Step 2b:
 
-**Test 1 — Stored apiVersion (authoritative).** Get the object via the Kubernetes
-API and read its top-level `apiVersion` field (the version the API server actually
-stores/serves):
-
-- If the stored `apiVersion` is **already `...k8s.io/v1`** (the target-safe version) →
-  **EXCLUDE.** There is nothing to migrate; a removed version in `managedFields` is
-  stale edit-history metadata, not live config. Contributes 0 points.
-- If the stored `apiVersion` is itself a removed version → **COUNT it** (a real finding).
-
-**Test 2 — Writer identity (only if Test 1 didn't already exclude).** For any
+**Writer identity (the only per-object signal).** For any
 removed-version entry in `managedFields`, check the `manager` (writer):
 
 - If the writer is a **Kubernetes/EKS-internal APF controller** — its name starts with
@@ -116,15 +112,26 @@ removed-version entry in `managedFields`, check the `manager` (writer):
   `flux`, or any other non-APF manager → **COUNT it.** This points to a real source
   manifest that must be updated.
 
-**Combined outcome:** A resource counts as a deprecated-API finding only if its stored
-`apiVersion` is a removed version OR a user tool wrote a removed version. If the object
-is already stored on `v1` and the only removed-version trace comes from internal APF
-controllers → it is a false positive; exclude it and record it under Informational
-Findings as "already migrated / system-written — no action required."
+**Outcome:** A resource counts as a deprecated-API finding only if a user tool wrote a
+removed version in `managedFields`. If the only removed-version trace comes from
+internal APF controllers → it is a false positive; exclude it and record it under
+Informational Findings as "system-written — no action required."
+
+**Caveat — spoofability:** `managedFields.manager` is client-supplied and can be
+spoofed or renamed; treat writer identity as strong evidence, not proof. When a
+finding is surprising, confirm against the actual source manifests (GitOps repo,
+Helm values) before acting on it.
+
+**Caveat — managedFields absence:** this caveat covers spoofed or renamed managers; it
+does NOT cover managedFields *absence*. Objects whose managedFields were stripped or
+never recorded (e.g., after a Velero/OADP restore or a managedFields-clearing webhook)
+carry no writer signal — exclude them from the Step 3b writer test and validate them
+separately against source manifests. Treating absent managedFields as "no user-tool
+writer" is a false-negative blind spot.
 
 An API path (e.g., `flowschemas`) is counted only if **at least one object on that path
-survives both tests**. If every object on the path is excluded, the path contributes 0
-points — do NOT deduct for it, and do NOT describe it as a blocker.
+has a user-tool writer of a removed version**. If every object on the path is excluded,
+the path contributes 0 points — do NOT deduct for it, and do NOT describe it as a blocker.
 
 ### Step 4: Classify Findings
 
@@ -156,4 +163,4 @@ For each finding, report:
 | Finding | Deduction |
 |---------|-----------|
 | API removed in target version | 5 pts per API path (max 20) |
-| API deprecated but available | 1 pt per API path (max 5) |
+| API deprecated but available | 1 pt per API path (sub-cap: max 5 pts — enforced in report-generation.md Category 2 pseudocode) |

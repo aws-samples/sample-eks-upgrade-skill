@@ -17,7 +17,10 @@ score = 100
 # Example: "FlowSchema v1beta2 removed" = 1 item (even if 17 FlowSchema resources use it).
 # Example: "PSP removed" = 1 item (even if 5 PSPs exist).
 breaking_changes_deduction = 0
-for each breaking_change_type found in cluster:
+# EXCLUSION: skip breaking-change types with a scoring home in another category —
+# containerd 1.x is scored under Category 3 (Node Readiness), not here. Parity with
+# the Category 9 anonymous-auth exclusion below. Do NOT double-count.
+for each breaking_change_type found in cluster:   # excluding types homed elsewhere (containerd -> Cat 3)
     if severity == HIGH:   breaking_changes_deduction += 10
     if severity == MEDIUM: breaking_changes_deduction += 4
     if severity == LOW:    breaking_changes_deduction += 2
@@ -33,31 +36,46 @@ breaking_changes_deduction = min(breaking_changes_deduction, 25)
 # steering/deprecated-apis.md. A path is counted ONCE regardless of step.
 #
 # EXCLUSION (deprecated-apis.md Step 3b): a FlowSchema / PriorityLevelConfiguration
-# counts ONLY if its stored (live) apiVersion is a removed version, OR a user tool
-# (kubectl/helm/argocd/flux/etc.) wrote a removed version in managedFields. Objects
-# already stored on v1 whose only removed-version trace comes from internal APF
-# controllers (managers named api-priority-and-fairness-config-* or eks-internal) are
-# false positives and do NOT count. An API path is counted only if at least one object
-# on it survives both tests; otherwise the path contributes 0 pts (report it under
+# counts ONLY if a user tool (kubectl/helm/argocd/flux/etc.) wrote a removed version
+# in managedFields — writer identity is the only per-object signal. Objects whose
+# only removed-version trace comes from internal APF controllers (managers named
+# api-priority-and-fairness-config-* or eks-internal) are false positives and do NOT
+# count. An API path is counted only if at least one object on it has a user-tool
+# writer of a removed version; otherwise the path contributes 0 pts (report it under
 # Informational Findings instead).
 deprecated_apis_deduction = 0
-for each deprecated_api_path found in cluster:   # excluding already-migrated / system-written objects per Step 3b
+deprecated_still_served_subtotal = 0
+for each deprecated_api_path found in cluster:   # excluding system-written objects per Step 3b
     if removed_in_target_version:    deprecated_apis_deduction += 5
-    if deprecated_but_still_served:  deprecated_apis_deduction += 1
+    if deprecated_but_still_served:  deprecated_still_served_subtotal += 1
+# SUB-CAP: deprecated-but-still-served paths cap at 5 pts (the "(max 5)" in
+# deprecated-apis.md Score Impact); removed-in-target paths have no sub-cap.
+deprecated_apis_deduction += min(deprecated_still_served_subtotal, 5)
 deprecated_apis_deduction = min(deprecated_apis_deduction, 20)
 
 # --- Category 3: Node Readiness (max deduction: 20) ---
-# Includes version skew, subnet IP capacity, AND containerd runtime.
-# COUNTING UNIT: each node group (skew) + each subnet (IP check) + containerd runtime.
+# Includes version skew, subnet IP capacity, containerd runtime, AND self-managed nodes.
+# COUNTING UNIT: each distinct kubelet minor version (skew) + each subnet (IP check)
+# + containerd runtime + self-managed-nodes presence (binary).
+# SKEW ITERATION UNIT: distinct kubelet minor versions across ALL nodes — the union
+# of managed node group versions AND every node's status.nodeInfo.kubeletVersion.
+# Karpenter-provisioned and self-managed nodes have no node group; iterating node
+# groups alone lets them escape both the deduction and hard blocker #1.
 node_skew_deduction = 0
-for each node_group:
-    skew = target_minor_version - node_group_minor_version
+for each distinct_kubelet_minor_version across all nodes (MNG union nodeInfo):
+    skew = target_minor_version - kubelet_minor_version
     if skew > 2:  node_skew_deduction += 20   # blocker — immediately caps
     if skew == 2: node_skew_deduction += 5
 for each subnet in cluster_subnets:
     if subnet.available_ips < 5:   node_skew_deduction += 5   # hard blocker
     elif subnet.available_ips <= 15: node_skew_deduction += 2  # warning
-# Containerd 1.x runtime (see node-readiness.md 5.3 for node-type classification):
+# Self-managed nodes (node-readiness.md 5.4 — no automated upgrade path). SCORING
+# HOME: Category 3. Binary: deduct once if any self-managed nodes are present.
+if any self_managed_nodes_present:
+    node_skew_deduction += 3
+# Containerd 1.x runtime (see node-readiness.md 5.3 for node-type classification).
+# SCORING HOME: containerd 1.x is scored HERE (Category 3), not under Breaking
+# Changes (Category 1) — one home only, do not double-count:
 if any node on containerd 1.x:
     if target >= 1.36 and any such node is self-managed/custom-AMI:
         node_skew_deduction += 5   # hard blocker (managed nodes exempt — they self-heal)
@@ -70,18 +88,33 @@ node_skew_deduction = min(node_skew_deduction, 20)
 # CLASSIFICATION RULES:
 #   - "critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
 #   - "optional add-on" = all other managed add-ons and identified OSS add-ons
+#   - INCOMPATIBLE = installed version is NOT in the target's compatible set
+#     (describe-addon-versions for the target returns no entry for it)
 #   - Status DEGRADED or FAILED with correct version = treat as critical/optional
 #     incompatible (same deduction as version incompatibility)
 #   - Status ACTIVE but version behind = "update recommended"
 #   - UNKNOWN_VERIFIABLE = identified but upstream compat source unreachable/ambiguous
 #   - UNKNOWN_UNIDENTIFIED = workload looks like an add-on but couldn't be identified
+#   - SKEW_WARNING = kube-proxy more than 3 minors behind the target (beyond the
+#     version-skew policy) while still in the compatible set — a Category 4 warning,
+#     NOT the same 2 pts as UNKNOWN_VERIFIABLE (they are separate rules that can
+#     both apply to different add-ons)
+#   - PRECEDENCE (most-specific-wins): a kube-proxy that is both "behind" and >3 minors
+#     behind is assigned SKEW_WARNING (+2), which supersedes UPDATE_RECOMMENDED (+1);
+#     INCOMPATIBLE supersedes both. One verdict per add-on.
+#
+# CRITICAL/OPTIONAL SPLIT (must match the bright-line table in
+# addon-compatibility.md): a CRITICAL add-on INCOMPATIBLE = +5 AND hard blocker #3
+# (caps score at 59); an OPTIONAL add-on INCOMPATIBLE = +3 with NO cap.
 addon_deduction = 0
 for each addon:
     if addon.verdict == "INCOMPATIBLE" or addon.status in [DEGRADED, FAILED]:
         if addon.name in [vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver]:
-            addon_deduction += 5   # critical add-on
+            addon_deduction += 5   # critical add-on — also hard blocker #3/#4
         else:
-            addon_deduction += 3   # optional add-on
+            addon_deduction += 3   # optional add-on — points only, NO cap
+    elif addon.verdict == "SKEW_WARNING":
+        addon_deduction += 2       # kube-proxy >3 minors behind target (skew beyond policy)
     elif addon.verdict == "UNKNOWN_VERIFIABLE":
         addon_deduction += 2       # identified, compatibility unverified
     elif addon.verdict == "UPDATE_RECOMMENDED":
@@ -110,6 +143,8 @@ if karpenter_installed and karpenter_version_incompatible_with_target:
 #   - Deployment missing readinessProbe on ANY container (1 pt)
 #   - Deployment missing resources.requests (cpu or memory) on ANY container (1 pt)
 #   - Multi-replica Deployment without a matching PodDisruptionBudget (1 pt)
+#   - Externally-facing workload missing lifecycle.preStop hook (1 pt)
+#     (workload-risks.md 6.6 — SCORING HOME: Category 6 MEDIUM)
 #   - Drain-blocking PDB (disruptionsAllowed == 0) (2 pts each)
 #
 # IMPORTANT: If one workload has BOTH single-replica AND missing probes,
@@ -122,6 +157,7 @@ for each workload in non_system_namespaces:
     if workload.missing_readiness_probe:      workload_medium += 1
     if workload.missing_resource_requests:    workload_medium += 1
     if workload.replicas > 1 and no_matching_pdb: workload_medium += 1
+    if workload.externally_facing and workload.missing_prestop_hook: workload_medium += 1
 for each pdb where disruptionsAllowed == 0:
     workload_medium += 2                      # drain-blocking PDB
 workload_high = min(workload_high, 8)
@@ -130,17 +166,16 @@ workload_deduction = min(workload_high + workload_medium, 10)
 
 # --- Category 7: AWS Upgrade Insights (max deduction: 10) ---
 # COUNTING UNIT: each insight ID from the EKS Insights API.
-# Map insight status to severity:
-#   FAILING → 5 pts
+# The insight status enum is PASSING / WARNING / ERROR / UNKNOWN — there is NO
+# "FAILING" status. Map insight status to points:
+#   ERROR   → 5 pts (worst real status — top tier)
 #   WARNING → 2 pts
-#   ERROR   → 3 pts
 #   PASSING → 0 pts
-#   UNKNOWN → 0 pts
+#   UNKNOWN → 0 pts (LOW severity — report under Informational Findings, no deduction)
 insights_deduction = 0
 for each insight:
-    if insight.status == "FAILING":  insights_deduction += 5
+    if insight.status == "ERROR":    insights_deduction += 5
     if insight.status == "WARNING":  insights_deduction += 2
-    if insight.status == "ERROR":    insights_deduction += 3
 insights_deduction = min(insights_deduction, 10)
 
 # --- Category 8: AL2 Nodes (max deduction: 5) ---
@@ -198,7 +233,7 @@ score = max(0, 100 - total_deductions)
 #
 # NOTE: "Critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
 has_hard_blocker = False
-if node_skew_any_group > 2:                           has_hard_blocker = True
+if any distinct_kubelet_minor_version skew > 2:       has_hard_blocker = True   # across ALL nodes (MNG union nodeInfo)
 if karpenter_installed and karpenter_incompatible:    has_hard_blocker = True
 if any critical_addon.verdict == "INCOMPATIBLE":      has_hard_blocker = True
 if any critical_addon.status in [DEGRADED, FAILED]:   has_hard_blocker = True
@@ -440,7 +475,7 @@ it doesn't precede them.
 
 | Add-on | Type | Version | Status | Verdict | Source |
 |--------|------|---------|--------|---------|--------|
-| [name] | Managed/Self-managed/OSS | [ver] | [health] | COMPATIBLE/UPDATE_RECOMMENDED/INCOMPATIBLE/UNKNOWN_VERIFIABLE | [URL or "managed"] |
+| [name] | Managed/Self-managed/OSS | [ver] | [health] | one of the §4.3 verdict states | [URL or "managed"] |
 
 ### Unknown & Unidentified Add-ons
 

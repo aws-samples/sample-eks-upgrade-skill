@@ -117,11 +117,15 @@ If the cluster version's Extended Support Until date has passed:
 **How to check:**
 1. List all node groups → describe each for Kubernetes version
 2. List nodes via Kubernetes API → get kubelet versions from `status.nodeInfo.kubeletVersion`
-3. For each node/node group version, calculate skew against the TARGET version (not current)
-4. Skew > 2: **BLOCKER** — nodes must be upgraded first
-5. Skew == 2: **WARNING** — at maximum skew, upgrade nodes promptly after control plane
+3. Build the set of DISTINCT kubelet minor versions across ALL nodes — the union of
+   managed node group versions and every node's `status.nodeInfo.kubeletVersion`.
+   Karpenter-provisioned and self-managed nodes have no node group; checking node
+   groups alone misses them entirely.
+4. For each distinct kubelet minor version, calculate skew against the TARGET version (not current)
+5. Skew > 2: **BLOCKER** — nodes must be upgraded first
+6. Skew == 2: **WARNING** — at maximum skew, upgrade nodes promptly after control plane
 
-**Output:** Per-node-group version, skew against target, blocker/warning status.
+**Output:** Each distinct kubelet minor version (with the node groups / nodes running it), skew against target, blocker/warning status.
 
 ## Score Impact
 
@@ -133,5 +137,5 @@ If the cluster version's Extended Support Until date has passed:
 | Version UNSUPPORTED | CRITICAL | 15 pts (Category 10) |
 | Multi-hop upgrade needed | INFO | 0 pts |
 | Target version unreleased | N/A | Assessment aborted — no score |
-| Node skew == 2 (warning) | MEDIUM | 5 pts per node group |
+| Node skew == 2 (warning) | MEDIUM | 5 pts per distinct kubelet minor version (across ALL nodes) |
 | Node skew > 2 (blocker) | CRITICAL | 20 pts (caps category) |

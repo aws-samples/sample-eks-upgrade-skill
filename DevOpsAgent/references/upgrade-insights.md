@@ -44,4 +44,6 @@ AWS Upgrade Insights checks multiple versions ahead, not just the immediate targ
 ## Score Impact
 
 > **Canonical scoring is defined in `references/report-generation.md` §Category 7.**
-> Quick reference: FAILING = 5 pts, ERROR = 3 pts, WARNING = 2 pts. Max category = 10 pts.
+> Quick reference: ERROR = 5 pts, WARNING = 2 pts, PASSING = 0 pts, UNKNOWN = 0 pts
+> (LOW severity, informational only). Max category = 10 pts. The status enum is
+> PASSING/WARNING/ERROR/UNKNOWN — there is no "FAILING" status.

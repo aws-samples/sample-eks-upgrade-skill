@@ -165,5 +165,5 @@ to verify capacity is sufficient for their instance type and CNI config.
 | AL2 nodes (target >= 1.33) | 10-15 pts |
 | Containerd 1.x (target < 1.36, or managed node on any target) | 2 pts |
 | Containerd 1.x on self-managed/custom AMI (target >= 1.36) | 5 pts + hard blocker override (caps score ≤ 59%) |
-| Self-managed nodes | 3 pts |
+| Self-managed nodes present | 3 pts (binary — Category 3, scored in report-generation.md pseudocode) |
 | Max category (combined with version-validation skew) | 20 pts |
