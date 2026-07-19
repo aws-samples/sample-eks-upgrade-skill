@@ -40,9 +40,10 @@ breaking_changes_deduction = min(breaking_changes_deduction, 25)
 # in managedFields — writer identity is the only per-object signal. Objects whose
 # only removed-version trace comes from internal APF controllers (managers named
 # api-priority-and-fairness-config-* or eks-internal) are false positives and do NOT
-# count. An API path is counted only if at least one object on it has a user-tool
-# writer of a removed version; otherwise the path contributes 0 pts (report it under
-# Informational Findings instead).
+# count. (eks-internal: exact manager string unverified vs public AWS docs as of
+# 2026-07; AWS documents "manager: eks" — kept conservatively.) An API path is counted
+# only if at least one object on it has a user-tool writer of a removed version;
+# otherwise the path contributes 0 pts (report it under Informational Findings instead).
 deprecated_apis_deduction = 0
 deprecated_still_served_subtotal = 0
 for each deprecated_api_path found in cluster:   # excluding system-written objects per Step 3b
@@ -96,7 +97,9 @@ node_skew_deduction = min(node_skew_deduction, 20)
 # --- Category 4: Add-on Compatibility (max deduction: 15) ---
 # COUNTING UNIT: each add-on (by name) + each unidentified workload.
 # CLASSIFICATION RULES:
-#   - "critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
+#   - "critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver,
+#     PLUS any non-AWS CNI installed in place of vpc-cni (Cilium, Calico) — an
+#     INCOMPATIBLE cluster CNI must never score READY
 #   - "optional add-on" = all other managed add-ons and identified OSS add-ons
 #   - INCOMPATIBLE = installed version is NOT in the target's compatible set
 #     (describe-addon-versions for the target returns no entry for it)
@@ -119,8 +122,8 @@ node_skew_deduction = min(node_skew_deduction, 20)
 addon_deduction = 0
 for each addon:
     if addon.verdict == "INCOMPATIBLE" or addon.status in [DEGRADED, FAILED]:
-        if addon.name in [vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver]:
-            addon_deduction += 5   # critical add-on — also hard blocker #3/#4
+        if addon.name in [vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver, cilium, calico]:
+            addon_deduction += 5   # critical add-on (incl. non-AWS CNIs) — also hard blocker #3/#4
         else:
             addon_deduction += 3   # optional add-on — points only, NO cap
     elif addon.verdict == "SKEW_WARNING":
@@ -134,15 +137,21 @@ for each unidentified_workload:
 addon_deduction = min(addon_deduction, 15)
 
 # --- Category 5: Karpenter (max deduction: 10) ---
-# COUNTING UNIT: binary — installed and incompatible, or not.
+# COUNTING UNIT: installed-and-incompatible (10), installed-but-version-unknown (2),
+# or not-applicable (0). Karpenter is NOT an EKS managed add-on, so it is scored HERE,
+# not in the Category 4 add-on loop. This is the ONE executable home for the
+# unknown-version UNKNOWN_VERIFIABLE (2 pts) verdict — do not also score it in Cat 4.
 karpenter_deduction = 0
-if karpenter_installed and karpenter_version_incompatible_with_target:
-    karpenter_deduction = 10
+if karpenter_installed:
+    if karpenter_version_incompatible_with_target:
+        karpenter_deduction = 10   # INCOMPATIBLE (hard blocker, see below)
+    elif karpenter_version_unknown_or_unidentifiable:
+        karpenter_deduction = 2    # UNKNOWN_VERIFIABLE — version could not be verified
 
 # --- Category 6: Workload Risks (max deduction: 10) ---
 # COUNTING UNIT: each individual Deployment/StatefulSet/DaemonSet affected.
 # Only count workloads in non-system namespaces (exclude: kube-system, kube-public,
-# kube-node-lease, karpenter, amazon-cloudwatch, amazon-guardduty).
+# kube-node-lease, karpenter, amazon-cloudwatch, amazon-guardduty, aws-observability).
 # A single workload can trigger MULTIPLE risk types — count each risk separately.
 #
 # HIGH-severity risks (3 pts each, sub-cap 8 pts):
@@ -159,15 +168,23 @@ if karpenter_installed and karpenter_version_incompatible_with_target:
 #
 # IMPORTANT: If one workload has BOTH single-replica AND missing probes,
 # that is 1 HIGH (3 pts) + 1 MEDIUM (1 pt) = 4 pts for that workload.
+# KIND GUARDS: DaemonSets have NO .spec.replicas — replica/PDB checks apply ONLY to
+# Deployment/StatefulSet (workload-risks.md 6.1/6.2). DaemonSets are handled by their
+# own kind-agnostic rules (missing probes / missing requests, which apply to all kinds).
+# externally_facing = a workload backed by a LoadBalancer-type Service OR an Ingress
+# (workload-risks.md 6.6 pinned definition); ClusterIP-only workloads are NOT.
 workload_high = 0
 workload_medium = 0
 for each workload in non_system_namespaces:
-    if workload.replicas == 1:                workload_high += 3
-    if workload.strategy == "Recreate":       workload_high += 3
+    if workload.kind in [Deployment, StatefulSet]:
+        if workload.replicas == 1:                workload_high += 3
+        if workload.strategy == "Recreate":       workload_high += 3   # Deployment only; StatefulSet has no Recreate
+        if workload.replicas > 1 and no_matching_pdb: workload_medium += 1
+    # kind-agnostic checks (apply to Deployment, StatefulSet AND DaemonSet):
     if workload.missing_readiness_probe:      workload_medium += 1
     if workload.missing_resource_requests:    workload_medium += 1
-    if workload.replicas > 1 and no_matching_pdb: workload_medium += 1
     if workload.externally_facing and workload.missing_prestop_hook: workload_medium += 1
+    # externally_facing = backed by a LoadBalancer-type Service OR an Ingress
 for each pdb where disruptionsAllowed == 0:
     workload_medium += 2                      # drain-blocking PDB
 workload_high = min(workload_high, 8)
@@ -181,7 +198,9 @@ workload_deduction = min(workload_high + workload_medium, 10)
 #   ERROR   → 5 pts (worst real status — top tier)
 #   WARNING → 2 pts
 #   PASSING → 0 pts
-#   UNKNOWN → 0 pts (LOW severity — report under Informational Findings, no deduction)
+#   UNKNOWN → LOW severity (0 pts — report under Informational Findings, no deduction).
+#     This matches upgrade-insights.md Step 3, which classifies UNKNOWN as LOW: it is a
+#     LOW-tier finding surfaced to the user, NOT silently dropped.
 # SUPPRESSION (no double-count): if the insight's subject is already scored in another
 # category (e.g. a deprecated-API WARNING already counted in Cat 2, or an add-on insight
 # already counted in Cat 4), score it 0 here and keep it as confirmation evidence only.
@@ -248,7 +267,8 @@ score = max(0, 100 - total_deductions)
 #
 # NOTE: containerd 1.x on self-managed/custom-AMI nodes at target >= 1.36 is HIGH severity
 # (+5 under Category 3) but is NOT a hard blocker — it does not cap the score.
-# NOTE: "Critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
+# NOTE: "Critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver, plus any
+# non-AWS CNI installed in their place (cilium, calico)
 has_hard_blocker = False
 if any distinct_kubelet_minor_version skew > 3:       has_hard_blocker = True   # across ALL nodes (MNG union nodeInfo); kubelet skew policy is N-3
 if karpenter_installed and karpenter_incompatible:    has_hard_blocker = True
@@ -341,23 +361,30 @@ in this order:
 
 1. `# EKS Upgrade Readiness Assessment`
 2. `## Readiness Score: ...`
-3. `## Blockers & Critical Actions`
-4. `## Recommended Actions`
-5. `## Informational Findings`
-6. `## Evidence`
-7. `## Upgrade Plan`
-8. `## AWS Reference Links`
+3. `## Blockers`
+4. `## Critical Actions`
+5. `## Recommended Actions`
+6. `## Informational Findings`
+7. `## Evidence`
+8. `## Upgrade Plan`
+9. `## AWS Reference Links`
 
-If ANY of sections 3, 4, 5, 7, or 8 is missing, the report is invalid — add the
-missing section (with "No blockers identified." / "No recommended actions." /
-"None." placeholder text if empty) before returning it to the user.
+`## Blockers` lists ONLY hard-blocker findings (the ones that cap the score at ≤59 —
+the exhaustive list in the Hard Blocker Override pseudocode). All other HIGH-severity
+findings go under `## Critical Actions`. Do NOT lump them together.
 
-Sections 3, 4, and 5 MUST appear before section 6 (Evidence). If they appear
+If ANY of sections 3, 4, 5, 6, 8, or 9 is missing, the report is invalid — add the
+missing section (with "No blockers identified." / "No critical actions." /
+"No recommended actions." / "None." placeholder text if empty) before returning it
+to the user.
+
+Sections 3, 4, 5, and 6 MUST appear before section 7 (Evidence). If they appear
 after Evidence, the report is invalid — reorder before returning.
 
 ### 3.2 Content checks
 
-1. Every HIGH/CRITICAL finding must appear in "Blockers & Critical Actions"
+1. Every hard-blocker finding (caps score ≤59) must appear in "Blockers"; every other
+   HIGH/CRITICAL finding must appear in "Critical Actions"
 2. Every MEDIUM finding must appear in "Recommended Actions"
 3. Every LOW finding must appear in "Informational Findings"
 4. The executive summary must match the findings — don't call something critical if it's medium
@@ -371,12 +398,17 @@ after Evidence, the report is invalid — reorder before returning.
    MUST be produced before any workload risk findings are written. All workload counts in the
    report must be traceable to rows in that table.
 9. **SCORE RECONCILIATION (hard gate):** Sum the Pts column of the Master Finding List
-   table. The headline score in `## Readiness Score:` MUST equal 100 minus that sum
-   (after per-category caps and any hard-blocker override). Also confirm each row's
-   Deduction in the Score Breakdown table equals the corresponding category subtotal
-   in the Master Finding List. If the header, the Score Breakdown, and the Master
-   Finding List do not all agree, the report is INVALID — recompute and fix before
-   returning it. Never publish a score that differs from the table it is derived from.
+   table. The arithmetic check is: the headline score in `## Readiness Score:` MUST equal
+   100 minus that sum (after per-category caps). **EXCEPTION — hard-blocker override:** when
+   any hard blocker is present, the score is intentionally capped at 59 (which will NOT equal
+   100 − sum whenever the arithmetic result exceeds 59). In that case the capped score of 59
+   is correct and MUST be accepted — do NOT flag the report INVALID for the arithmetic
+   mismatch. Apply the strict "score == 100 − sum" equality check ONLY on the non-capped path
+   (no hard blocker). Also confirm each row's Deduction in the Score Breakdown table equals
+   the corresponding category subtotal in the Master Finding List. If the header, the Score
+   Breakdown, and the Master Finding List do not all agree (accounting for the hard-blocker
+   cap), the report is INVALID — recompute and fix before returning it. Never publish a score
+   that differs from the table it is derived from (except the documented ≤59 blocker cap).
 10. **MANDATORY-FINDING PRESENCE:** Every "always flag" item from the steering files
    MUST appear as a row in the Master Finding List when its target condition is met.
    When the upgrade crosses INTO the restriction (current <= 1.31 AND target >= 1.32) this
@@ -404,21 +436,22 @@ entirely (do not leave it as "N/A" or "None found").
 
 1. `# EKS Upgrade Readiness Assessment` — title + metadata table
 2. `## Readiness Score: XX% — [LEVEL]` — summary sentence + Score Breakdown table
-3. `## Blockers & Critical Actions` — MUST appear even if empty (write "No blockers identified.")
-4. `## Recommended Actions` — MUST appear even if empty (write "No recommended actions.")
-5. `## Informational Findings` — MUST appear even if empty (write "None.")
-6. `## Evidence` — container for the detailed tables below
+3. `## Blockers` — hard-blocker findings ONLY (caps score ≤59); MUST appear even if empty (write "No blockers identified.")
+4. `## Critical Actions` — other HIGH/CRITICAL findings; MUST appear even if empty (write "No critical actions.")
+5. `## Recommended Actions` — MUST appear even if empty (write "No recommended actions.")
+6. `## Informational Findings` — MUST appear even if empty (write "None.")
+7. `## Evidence` — container for the detailed tables below
    - `### Add-on Inventory`
    - `### Unknown & Unidentified Add-ons` — OPTIONAL (only if any UNKNOWN_* verdicts exist)
    - `### Node Group Summary`
    - `### Workload Risk Summary`
-7. `## Upgrade Plan` — always required
-8. `## AWS Reference Links` — always required
+8. `## Upgrade Plan` — always required
+9. `## AWS Reference Links` — always required
 
-The three action sections (Blockers, Recommended, Informational) come BEFORE the
-Evidence tables. This is intentional — readers open the report to answer "what do
-I need to do?", not "what did the tool find?". Evidence supports the action items;
-it doesn't precede them.
+The four action sections (Blockers, Critical Actions, Recommended, Informational) come
+BEFORE the Evidence tables. This is intentional — readers open the report to answer
+"what do I need to do?", not "what did the tool find?". Evidence supports the action
+items; it doesn't precede them.
 
 ```markdown
 # EKS Upgrade Readiness Assessment
@@ -431,6 +464,8 @@ it doesn't precede them.
 | Current Version | [current] |
 | Target Version | [target] |
 | Assessment Date | [YYYY-MM-DD HH:MM] |
+
+> Account ID hygiene: the account ID is sensitive. If this report will be shared outside the account, mask or omit the `[account-id]` value before sharing.
 
 ---
 
@@ -456,12 +491,30 @@ it doesn't precede them.
 
 ---
 
-## Blockers & Critical Actions
+## Blockers
 
-[Items that MUST be resolved before upgrading. If none, write: "No blockers identified."]
+[Hard-blocker findings ONLY — the ones that cap the score at ≤59 (see the Hard Blocker
+Override list). These MUST be resolved before upgrading. If none, write: "No blockers identified."]
 
 ### [Finding Title]
-- **Severity:** HIGH/CRITICAL
+- **Severity:** CRITICAL (hard blocker)
+- **What we found:** [specific to this cluster]
+- **Impact if not addressed:** [real-world consequence]
+- **Remediation:**
+  ```bash
+  [pre-filled command with actual cluster name and region]
+  ```
+- **Reference:** [AWS doc link]
+
+---
+
+## Critical Actions
+
+[HIGH-severity findings that are NOT hard blockers — important to address but do not cap the
+score. If none, write: "No critical actions."]
+
+### [Finding Title]
+- **Severity:** HIGH
 - **What we found:** [specific to this cluster]
 - **Impact if not addressed:** [real-world consequence]
 - **Remediation:**
@@ -495,7 +548,7 @@ it doesn't precede them.
 
 | Add-on | Type | Version | Status | Verdict | Source |
 |--------|------|---------|--------|---------|--------|
-| [name] | Managed/Self-managed/OSS | [ver] | [health] | one of the §4.3 verdict states | [URL or "managed"] |
+| [name] | Managed/Self-managed/OSS | [ver] | [health] | one of the addon-compatibility.md §4.3 verdict states | [URL or "managed"] |
 
 ### Unknown & Unidentified Add-ons
 
@@ -534,7 +587,7 @@ compatibility with the target version manually.
 | Single replica deployments | HIGH | [N] | [names] |
 | Missing PDBs | MEDIUM | [N] | [names] |
 | Missing readiness probes | MEDIUM | [N] | [names] |
-| Missing resource requests | HIGH | [N]% | [percentage] |
+| Missing resource requests | MEDIUM | [N] | [names] |
 
 ---
 

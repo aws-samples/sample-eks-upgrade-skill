@@ -31,7 +31,7 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 ### 5.2 — AL2 to AL2023 Migration Assessment
 
 **Why this matters:**
-- AL2 standard support ended June 2025
+- AL2 EKS-optimized AMIs: the last AL2 AMIs were published 2025-11-26 (1.32 is the last Kubernetes version to receive AL2 AMIs); the AL2 OS itself reaches end-of-life 2026-06-30
 - EKS 1.33+ does NOT publish AL2 AMIs — cannot create new AL2 node groups
 - AL2 uses cgroup v1; AL2023 uses cgroup v2 (required for EKS 1.35+)
 
@@ -45,12 +45,12 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 - AL2 nodes present, target < 1.33 → WARN (plan migration)
 - AL2 nodes present, target >= 1.33 → FAIL (blocker — no AL2 AMI available)
 
-**Migration guidance:**
-1. Create new node group with AL2023 AMI type
-2. Cordon old AL2 nodes: `kubectl cordon <node-name>`
-3. Drain workloads: `kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data`
-4. Delete old node group after all pods rescheduled
-5. Key differences: cgroup v2 default, dnf instead of yum, different kernel
+**Migration guidance (report as recommended remediation steps):**
+1. Recommend: create a new node group with the AL2023 AMI type
+2. Recommend: cordon the old AL2 nodes to mark them unschedulable so no new pods land on them
+3. Recommend: drain the workloads off the old AL2 nodes (ignoring DaemonSets, and clearing emptyDir data) so pods reschedule onto the AL2023 node group
+4. Recommend: delete the old node group once all pods have rescheduled
+5. Note the key differences to plan for: cgroup v2 default, dnf instead of yum, different kernel
 
 ### 5.3 — Container Runtime Version
 

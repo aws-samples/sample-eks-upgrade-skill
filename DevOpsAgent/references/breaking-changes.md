@@ -32,6 +32,8 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
   finding only if a user tool (kubectl/helm/argocd/flux) wrote v1beta2 in `managedFields`.
   Objects whose only v1beta2 trace comes from internal APF controllers
   (`api-priority-and-fairness-config-*`, `eks-internal`) are false positives and do NOT count.
+  (`eks-internal` — exact manager string unverified against public AWS docs as of 2026-07;
+  AWS documents `manager: eks`. Kept conservatively.)
 - If a real (user-managed) object is found → HIGH severity (removed API in use). Update to `flowcontrol.apiserver.k8s.io/v1`
 - **Scoring home:** this is a removed API — scored under Deprecated APIs (Category 2), NOT
   here. Do NOT also deduct for it under Breaking Changes — that would double-count.
@@ -54,7 +56,8 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
   a real finding only if a user tool (kubectl/helm/argocd/flux) wrote v1beta3 in
   `managedFields`. Objects whose only v1beta3 trace comes from internal APF controllers
   (`api-priority-and-fairness-config-*`, `eks-internal`) are false positives and do
-  NOT count.
+  NOT count. (`eks-internal` — exact manager string unverified against public AWS docs
+  as of 2026-07; AWS documents `manager: eks`. Kept conservatively.)
 - If a real (user-managed, not-yet-migrated) v1beta3 object is found → HIGH severity.
   Update to `flowcontrol.apiserver.k8s.io/v1`.
 - **Scoring home:** this finding is scored under Deprecated APIs (Category 2), NOT

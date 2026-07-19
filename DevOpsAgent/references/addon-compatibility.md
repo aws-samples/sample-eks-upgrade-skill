@@ -27,7 +27,11 @@ compare — never declare an add-on "compatible" or "up to date" from judgment a
 
 - **API:** `DescribeAddonVersions`
 - **Parameters:** `addonName: <addon>`, `kubernetesVersion: <target>`
-- **Extract:** the first (latest) entry in `addons[0].addonVersions[].addonVersion`
+- **Extract:** from `addons[0].addonVersions[]`, select the entry flagged as the
+  **defaultVersion** (the `compatibilities[].defaultVersion` marker). If none is
+  flagged, select the entry with the **highest semver**. Do NOT take the first
+  array element — `DescribeAddonVersions` does NOT guarantee index 0 is the
+  newest/default.
 
 This gives the latest available build for the target Kubernetes version. Then apply
 this bright-line rule for each add-on:
@@ -46,7 +50,8 @@ row and the ">3 minors → SKEW_WARNING" row. Assign SKEW_WARNING (+2) — it su
 UPDATE_RECOMMENDED (+1). INCOMPATIBLE supersedes both. Exactly one verdict per add-on.
 
 The critical/optional split is decisive: only a CRITICAL add-on (vpc-cni, coredns,
-kube-proxy, aws-ebs-csi-driver) INCOMPATIBLE triggers hard blocker #3; an OPTIONAL
+kube-proxy, aws-ebs-csi-driver, plus any non-AWS cluster CNI installed in place of
+vpc-cni — Cilium, Calico) INCOMPATIBLE triggers hard blocker #3; an OPTIONAL
 add-on INCOMPATIBLE deducts 3 pts and does NOT cap the score.
 
 **Scope of this API-based INCOMPATIBLE rule:** this `DescribeAddonVersions`
@@ -93,7 +98,7 @@ compatibility with the target Kubernetes version via web search.
    - Labels: `app.kubernetes.io/name`, `app.kubernetes.io/version`
    - Helm labels: `helm.sh/chart`, `app.kubernetes.io/managed-by`
    - Container image repo + tag (e.g., `quay.io/jetstack/cert-manager-controller:v1.15.0`)
-3. Exclude AWS-managed add-ons (vpc-cni, coredns, kube-proxy, ebs-csi) and Karpenter (checked separately)
+3. Exclude AWS-managed add-ons (vpc-cni, coredns, kube-proxy, ebs-csi) and Karpenter (checked separately). A non-AWS cluster CNI (Cilium, Calico) is also excluded from this generic OSS-optional scan — it is scored on the CRITICAL add-on path above (an INCOMPATIBLE cluster CNI is a hard blocker, not a 3-pt optional finding).
 4. Exclude workloads in these system namespaces (treat as user apps, not add-ons only if they
    clearly match a known add-on identifier): `kube-system` is included for add-on scan;
    `default` and application namespaces are EXCLUDED unless the workload matches a known
@@ -237,7 +242,9 @@ You MUST perform a web search to verify compatibility:
 
 **Rating:**
 - Compatible version per matrix → PASS
-- Installed but version unknown → WARN (manual review)
+- Installed but version unknown/unidentifiable → WARN (manual review). Do NOT invent a
+  new Category 5 deduction for this — score it as the existing `UNKNOWN_VERIFIABLE`
+  verdict (2 pts), NOT a separate/new deduction.
 - Incompatible version per matrix → FAIL (must upgrade Karpenter BEFORE control plane)
 
 **Key talking point:** Karpenter must be upgraded BEFORE the control plane, not after. The order matters. The 0.x → 1.x migration requires migrating from Provisioner to NodePool v1 APIs. See https://karpenter.sh/v1.0/upgrading/v1-migration/
@@ -248,7 +255,7 @@ You MUST perform a web search to verify compatibility:
 
 | Finding | Deduction |
 |---------|-----------|
-| Critical add-on INCOMPATIBLE (vpc-cni, coredns, kube-proxy, ebs-csi) | 5 pts each + hard blocker (caps ≤59) |
+| Critical add-on INCOMPATIBLE (vpc-cni, coredns, kube-proxy, ebs-csi, or a non-AWS cluster CNI — Cilium, Calico) | 5 pts each + hard blocker (caps ≤59) |
 | Optional add-on INCOMPATIBLE | 3 pts each (no cap) |
 | kube-proxy SKEW_WARNING (>3 minors behind target, still in compatible set) | 2 pts each (Cat-4 warning — distinct from UNKNOWN_VERIFIABLE) |
 | Add-on UNKNOWN_VERIFIABLE (could not verify upstream) | 2 pts each |

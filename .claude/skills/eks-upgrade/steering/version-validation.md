@@ -26,13 +26,16 @@ Validate the upgrade path, determine support status, and enforce EKS upgrade rul
 
 **CRITICAL:** The `upgradePolicy.supportType` field from the API is a CONFIGURATION PREFERENCE, not the current billing status. Always determine actual support status from the calendar above or from live AWS documentation.
 
-**Cost impact:** Extended support costs $0.60/hr vs $0.10/hr for standard support.
+**Cost impact:** Extended support has historically cost ~$0.60/hr vs ~$0.10/hr for standard support. These rates are indicative and subject to change — verify against the current [Amazon EKS pricing page](https://aws.amazon.com/eks/pricing/) before quoting figures to the user.
 
-**IMPORTANT — Cost Calculation Formula (do NOT estimate, always compute):**
+**Cost Calculation Formula (recompute with the current rates, do not hardcode):**
 ```
-extra_cost_per_month = (0.60 - 0.10) × 730 = $365/month per cluster
-total_extended_cost  = 0.60 × 730 = $438/month per cluster
-total_standard_cost  = 0.10 × 730 = $73/month per cluster
+extra_cost_per_month = (extended_rate - standard_rate) × 730
+total_extended_cost  = extended_rate × 730
+total_standard_cost  = standard_rate × 730
+# Example with the indicative rates above:
+#   extra = (0.60 - 0.10) × 730 = ~$365/month per cluster
+#   total_extended = 0.60 × 730 = ~$438/month per cluster
 ```
 Always use this formula. Do NOT round, estimate, or hallucinate cost figures.
 730 = average hours per month (365 days × 24 hours ÷ 12 months).
@@ -87,7 +90,7 @@ If the cluster version's Extended Support Until date has passed:
 - Flag as a blocker in the report (see report-generation.md for template)
 - The cluster no longer receives security patches or bug fixes from AWS
 - AWS may force-upgrade the cluster with limited notice
-- Extended support billing ($0.60/hr) still applies even past the end date until the cluster is upgraded
+- Extended support billing (indicative ~$0.60/hr — verify current rate) continues to apply while the cluster remains on the extended-support version until it is upgraded
 - Score impact: 15 pts deduction (see report-generation.md §Category 10)
 
 **Output:** Current version, support tier, cost implications. If UNSUPPORTED, include urgency callout.

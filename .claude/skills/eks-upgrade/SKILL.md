@@ -1,6 +1,6 @@
 ---
 name: eks-upgrade-check
-description: "Assess EKS cluster upgrade readiness - run automated checks across 8 areas, calculate a readiness score (0-100%), and generate a report with remediation steps. Use when: EKS upgrade, cluster upgrade, upgrade readiness, deprecated API, version skew, addon compatibility, Karpenter, node upgrade, control plane upgrade."
+description: "Assess EKS cluster upgrade readiness - run automated checks across 8 areas, calculate a readiness score (0-100%), and generate a report with remediation steps. Use when (in the context of a Kubernetes version upgrade): EKS upgrade, cluster upgrade, upgrade readiness, deprecated API, version skew, addon compatibility, Karpenter version, node upgrade, control plane upgrade."
 allowed-tools: Bash, Read, Write, Grep, Glob, WebFetch, WebSearch
 ---
 
@@ -113,6 +113,8 @@ Wait for the user to resolve the issue.
 
 Run `aws eks describe-cluster --name <cluster>` and show: cluster name, Kubernetes version, platform version, region, status, account ID.
 
+> **Account ID hygiene:** the account ID (from `aws sts get-caller-identity` / the cluster ARN) is sensitive. If the report will be shared outside the account, mask or omit the account ID before sharing.
+
 **Action 2b — Validate cluster status**
 
 Check the `status` field from the cluster description. If status is NOT `ACTIVE`:
@@ -180,7 +182,7 @@ Read `${CLAUDE_SKILL_DIR}/steering/report-generation.md` and produce the report.
 
 ## Report Output
 
-- **Markdown:** `EKS-Upgrade-Assessment-<cluster>-<version>-<YYYY-MM-DD>-<HHMM>.md`
+- **Markdown:** `EKS-Upgrade-Assessment-<cluster>-<current>-to-<target>-<YYYY-MM-DD>-<HHMM>.md`
 - **HTML:** Run `python3 ${CLAUDE_SKILL_DIR}/tools/md_to_html.py <report>.md` to convert
 
 Do NOT generate HTML manually. Always use the conversion script.

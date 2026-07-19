@@ -32,7 +32,10 @@ they catch different failure modes.
 #### Step 2a: Object `apiVersion` scan
 
 For each resource type, list resources and check the live `apiVersion` field
-against the deprecation table in Step 3.
+against the deprecation table in Step 3. This is a **detection** step only: it
+surfaces candidate API paths from the live object `apiVersion`; it does not decide
+whether a resource needs migrating. That decision is made in Step 3b by writer
+identity — not by a served-vs-stored apiVersion comparison.
 
 #### Step 2b: `managedFields` apiVersion scan
 
@@ -80,6 +83,7 @@ may strip it from rendered output (kubectl 1.21+ hides managedFields from
 | 1.25 | `discovery.k8s.io/v1beta1` EndpointSlice | `discovery.k8s.io/v1` |
 | 1.25 | `autoscaling/v2beta1` HPA | `autoscaling/v2` |
 | 1.26 | `autoscaling/v2beta2` HPA | `autoscaling/v2` |
+| 1.27 | `storage.k8s.io/v1beta1` CSIStorageCapacity | `storage.k8s.io/v1` |
 | 1.26 | `flowcontrol.apiserver.k8s.io/v1beta1` | `flowcontrol.apiserver.k8s.io/v1beta2` |
 | 1.29 | `flowcontrol.apiserver.k8s.io/v1beta2` | `flowcontrol.apiserver.k8s.io/v1` |
 | 1.32 | `flowcontrol.apiserver.k8s.io/v1beta3` | `flowcontrol.apiserver.k8s.io/v1` |
@@ -98,8 +102,14 @@ wrote the removed version** — a resource is a real finding only if a
 > control planes a `v1` read-back can hide a manifest still applied as `v1beta3`.
 > Do NOT use served/stored apiVersion as a per-object signal.
 
-Apply this deterministic test to every FlowSchema / PriorityLevelConfiguration
-surfaced by Step 2a or Step 2b:
+Apply this deterministic test to **every removed-API kind** surfaced via
+`managedFields` in Step 2b (FlowSchema / PriorityLevelConfiguration and all other
+kinds alike — Ingress, PodDisruptionBudget, CronJob, HPA, EndpointSlice, etc.).
+The writer-identity filter is general: any kind can carry a stale removed-version
+entry written by an internal/system manager, so the same false-positive risk
+applies beyond APF. Objects surfaced only by Step 2a's live-object `apiVersion`
+that have no `managedFields` writer signal are validated separately (see the
+managedFields-absence caveat below):
 
 **Writer identity (the only per-object signal).** For any
 removed-version entry in `managedFields`, check the `manager` (writer):
@@ -109,6 +119,8 @@ removed-version entry in `managedFields`, check the `manager` (writer):
   `api-priority-and-fairness-config-consumer-v1`,
   `-producer-v1`) or is `eks-internal` → **EXCLUDE.** These are the API server's own
   bootstrap controllers; the user cannot and need not change them.
+  (`eks-internal` — exact manager string is UNVERIFIED against public AWS docs as of
+  2026-07; AWS documents `manager: eks`. Kept in the exclusion list conservatively.)
 - If the writer is a **user tool** — `kubectl-*`, `helm`, `argocd-application-controller`,
   `flux`, or any other non-APF manager → **COUNT it.** This points to a real source
   manifest that must be updated.
@@ -128,7 +140,10 @@ does NOT cover managedFields *absence*. Objects whose managedFields were strippe
 never recorded (e.g., after a Velero/OADP restore or a managedFields-clearing webhook)
 carry no writer signal — exclude them from the Step 3b writer test and validate them
 separately against source manifests. Treating absent managedFields as "no user-tool
-writer" is a false-negative blind spot.
+writer" is a false-negative blind spot. If that separate check of the source manifests
+(GitOps repo, Helm values) confirms a user tool authored the removed version, treat the
+object as having a user-tool writer for counting purposes (count the path); if the
+manifests show no such authorship, leave it excluded.
 
 An API path (e.g., `flowschemas`) is counted only if **at least one object on that path
 has a user-tool writer of a removed version**. If every object on the path is excluded,

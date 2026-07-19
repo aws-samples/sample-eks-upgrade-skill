@@ -43,7 +43,7 @@
         "helm_charts": ["kube-prometheus-stack", "prometheus-community"],
         "container_images": ["quay.io/prometheus/prometheus", "quay.io/prometheus-operator/prometheus-operator", "quay.io/prometheus/alertmanager"]
       },
-      "compatibility_url": "https://github.com/prometheus-operator/kube-prometheus#kubernetes-compatibility-matrix",
+      "compatibility_url": "https://github.com/prometheus-operator/kube-prometheus#compatibility",
       "releases_url": "https://github.com/prometheus-community/helm-charts/releases",
       "notes": "Chart uses CalVer-ish numbering (e.g., 61.x). Compatibility is driven by bundled prometheus-operator version; check kube-prometheus compatibility matrix."
     },
@@ -87,7 +87,7 @@
       },
       "compatibility_url": "https://github.com/kubernetes-sigs/external-dns/blob/master/README.md",
       "releases_url": "https://github.com/kubernetes-sigs/external-dns/releases",
-      "notes": "external-dns does not publish a formal K8s compatibility matrix. Check release notes for breaking changes and minimum K8s version."
+      "notes": "Check release notes for breaking changes and minimum K8s version."
     },
     {
       "name": "metrics-server",
@@ -158,7 +158,7 @@
         "helm_charts": ["kyverno"],
         "container_images": ["ghcr.io/kyverno/kyverno"]
       },
-      "compatibility_url": "https://kyverno.io/docs/installation/#compatibility-matrix",
+      "compatibility_url": "https://kyverno.io/docs/installation/releases/",
       "releases_url": "https://github.com/kyverno/kyverno/releases"
     },
     {
