@@ -611,6 +611,6 @@ Write to the workspace root.
 ## Step 7: Offer HTML Conversion
 
 After writing the markdown report, ask:
-*"Would you like me to convert the report to HTML? Run: `python3 tools/md_to_html.py <report-filename>.md`"*
+*"Would you like me to convert the report to HTML? Run: `python3 ${CLAUDE_SKILL_DIR}/tools/md_to_html.py <report-filename>.md`"*
 
 Do NOT generate HTML manually. Always use the conversion script.
