@@ -64,11 +64,21 @@ deprecated_apis_deduction = min(deprecated_apis_deduction, 20)
 node_skew_deduction = 0
 for each distinct_kubelet_minor_version across all nodes (MNG union nodeInfo):
     skew = target_minor_version - kubelet_minor_version
-    if skew > 2:  node_skew_deduction += 20   # blocker — immediately caps
-    if skew == 2: node_skew_deduction += 5
+    if skew > 3:  node_skew_deduction += 20   # blocker — immediately caps (kubelet skew policy is N-3)
+    if skew == 3: node_skew_deduction += 5    # warning — at max supported skew
+# Composition rule: the +2 per-low-subnet warning ALWAYS applies (per subnet, below); the
+# +5 collective hard blocker is ADDITIONAL and applies only when collective insufficiency holds.
 for each subnet in cluster_subnets:
-    if subnet.available_ips < 5:   node_skew_deduction += 5   # hard blocker
-    elif subnet.available_ips <= 15: node_skew_deduction += 2  # warning
+    if subnet.available_ips < 5:     node_skew_deduction += 2   # single low subnet — warning (always applies)
+    elif subnet.available_ips <= 15: node_skew_deduction += 2   # warning
+# Hard blocker ONLY when the candidate control-plane subnets COLLECTIVELY cannot place
+# the control-plane ENIs (placement insufficiency) — a single low subnet among healthy
+# subnets is a warning, not a blocker. Definition:
+#   candidate_subnets_collectively_cannot_place_enis
+#     = sum(AvailableIpAddressCount) across ALL cluster subnets < 5
+# (e.g. subnets of 3 + 12 IPs → sum 15 ≥ 5 → NO blocker; the 3-IP subnet is a +2 warning only.)
+if candidate_subnets_collectively_cannot_place_enis:
+    node_skew_deduction += 5   # hard blocker (collective/placement insufficiency), in addition to any +2 warnings
 # Self-managed nodes (node-readiness.md 5.4 — no automated upgrade path). SCORING
 # HOME: Category 3. Binary: deduct once if any self-managed nodes are present.
 if any self_managed_nodes_present:
@@ -78,7 +88,7 @@ if any self_managed_nodes_present:
 # Changes (Category 1) — one home only, do not double-count:
 if any node on containerd 1.x:
     if target >= 1.36 and any such node is self-managed/custom-AMI:
-        node_skew_deduction += 5   # hard blocker (managed nodes exempt — they self-heal)
+        node_skew_deduction += 5   # HIGH severity, NOT a score-cap blocker (outside containerd's tested matrix; managed nodes exempt)
     else:
         node_skew_deduction += 2   # warning (pre-1.36, or managed node that auto-upgrades)
 node_skew_deduction = min(node_skew_deduction, 20)
@@ -218,7 +228,9 @@ score = max(0, 100 - total_deductions)
 # Cap score at 59 (NOT READY) regardless of the arithmetic result.
 #
 # Hard blockers (exhaustive list):
-#   1. Node version skew > 2 (K8s API server rejects the upgrade)
+#   1. Node version skew > 3 (kubelet more than N-3 behind the target is outside the
+#      Kubernetes version-skew policy — nodes may fail to register or the kubelet may be
+#      incompatible; a support-policy limit, not an API-enforced rejection)
 #   2. Karpenter version incompatible with target (node provisioning breaks)
 #   3. Critical add-on INCOMPATIBLE with target version (networking/storage breaks)
 #   4. Critical add-on DEGRADED or FAILED (node drain stalls — volumes, DNS, or
@@ -226,23 +238,24 @@ score = max(0, 100 - total_deductions)
 #   5. API removed in target version AND actively used in cluster (workloads fail)
 #   6. Cluster status != ACTIVE (EKS API rejects update-cluster-version)
 #   7. AL2-only node groups AND target >= 1.33 (no AL2 AMI available for target)
-#   8. Any cluster subnet has < 5 available IPs (EKS API rejects update-cluster-version)
-#   9. Self-managed / custom-AMI node on containerd 1.x AND target >= 1.36 (1.36 kubelet
-#      won't run on containerd 1.x). Managed node groups / Bottlerocket are EXEMPT —
-#      their node-group upgrade pulls containerd 2.0+ automatically.
+#   8. Candidate control-plane subnets COLLECTIVELY cannot provide enough free IPs to
+#      place control-plane ENIs (EKS API rejects update-cluster-version). A single low
+#      subnet among otherwise-healthy subnets is a warning, not a blocker.
 #
+# NOTE: containerd 1.x on self-managed/custom-AMI nodes at target >= 1.36 is HIGH severity
+# (+5 under Category 3) but is NOT a hard blocker — it does not cap the score.
 # NOTE: "Critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
 has_hard_blocker = False
-if any distinct_kubelet_minor_version skew > 2:       has_hard_blocker = True   # across ALL nodes (MNG union nodeInfo)
+if any distinct_kubelet_minor_version skew > 3:       has_hard_blocker = True   # across ALL nodes (MNG union nodeInfo); kubelet skew policy is N-3
 if karpenter_installed and karpenter_incompatible:    has_hard_blocker = True
 if any critical_addon.verdict == "INCOMPATIBLE":      has_hard_blocker = True
 if any critical_addon.status in [DEGRADED, FAILED]:   has_hard_blocker = True
 if any api_removed_in_target_and_in_use:              has_hard_blocker = True
 if cluster_status != "ACTIVE":                        has_hard_blocker = True
 if al2_only_node_groups and target >= 1.33:           has_hard_blocker = True
-if any subnet.available_ips < 5:                      has_hard_blocker = True
-if any (node.containerd_major == 1 and node.is_self_managed) and target >= 1.36:
-    has_hard_blocker = True
+if candidate_subnets_collectively_cannot_place_enis:  has_hard_blocker = True   # single low subnet among healthy = warning, not blocker
+# containerd 1.x on self-managed nodes at target >= 1.36 is HIGH severity (+5 Cat 3) but is
+# NOT a hard blocker — it does not cap the score.
 
 if has_hard_blocker:
     score = min(score, 59)
@@ -361,7 +374,9 @@ after Evidence, the report is invalid — reorder before returning.
    returning it. Never publish a score that differs from the table it is derived from.
 10. **MANDATORY-FINDING PRESENCE:** Every "always flag" item from the steering files
    MUST appear as a row in the Master Finding List when its target condition is met.
-   For target >= 1.32 this includes "Anonymous Auth Restricted" (Category 1, 4 pts).
+   When the upgrade crosses INTO the restriction (current <= 1.31 AND target >= 1.32) this
+   includes "Anonymous Auth Restricted" (Category 1, 4 pts). A cluster already on 1.32+ is
+   past this crossing — do NOT add it.
    If an always-flag item is absent from the table, the assessment is incomplete —
    add it before scoring.
 
@@ -528,6 +543,19 @@ compatibility with the target version manually.
 - [ ] Node groups ready (AL2023/Bottlerocket)
 - [ ] PDBs in place for critical workloads
 - [ ] Backup/snapshot taken
+
+### Rollback Considerations (advisory — not scored)
+EKS supports rolling the control plane back to the previous minor version within 7 days of an
+in-place upgrade (single version, N→N-1), gated by `ROLLBACK_READINESS` cluster insights. Two
+forward-decidable choices can foreclose that path, so decide them before/while upgrading:
+- **New-version-only API/feature adoption during the 7-day bake window** must be removed before a
+  rollback — limit adoption of target-only APIs until the upgrade is confirmed stable.
+- **Add-on cross-compatibility** — for a clean rollback, EKS-managed add-ons should be compatible
+  with BOTH the current and target versions, not target-only.
+Boundaries: Fargate rollback is unsupported; add-ons, etcd, workloads, and PVs are NOT reverted;
+only Auto Mode nodes auto-roll-back (managed / self-managed / hybrid node groups are the
+operator's job); rolling back to a version in extended support requires setting the cluster upgrade
+policy to `EXTENDED` first. Advisory only — it does not change the readiness score.
 
 ### Step 1: Update Add-ons (if needed)
 ```bash

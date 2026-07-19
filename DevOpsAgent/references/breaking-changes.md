@@ -51,7 +51,7 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 
 ### Target >= 1.32: Anonymous Auth Restricted
 
-**Always flag** (MEDIUM severity) — affects all clusters upgrading to 1.32+.
+**Flag** (MEDIUM severity) only when `current <= 1.31 AND target >= 1.32` — i.e. the upgrade crosses INTO the anonymous-auth restriction. A cluster already on 1.32+ has the restriction in effect; do NOT flag it again.
 - Anonymous requests only allowed to /healthz, /livez, /readyz
 - Check: List ClusterRoleBindings via the Kubernetes API and flag any whose `subjects[]`
   include `system:unauthenticated`
@@ -88,10 +88,10 @@ to any target >= 1.35.
 ### Target >= 1.35: Containerd 1.x End of Support
 
 **Check:** List nodes → inspect `status.nodeInfo.containerRuntimeVersion`
-- If any node shows containerd 1.x → MEDIUM severity
-- Last release supporting containerd 1.x; next version requires 2.0+
+- If any node shows containerd 1.x → MEDIUM severity (HIGH for self-managed / custom-AMI nodes at target >= 1.36 — see Node Readiness 5.3)
+- containerd 1.x is outside the tested matrix for 1.36, which is validated against containerd 2.x. EKS-managed AL2023 AMIs ship containerd 2.x, so they are unaffected.
 - **Scoring home:** containerd 1.x is scored under Node Readiness (Category 3), NOT
-  here. Do NOT also deduct for it under Breaking Changes — that would double-count.
+  here. It is HIGH severity for the self-managed/1.36 case but is NOT a hard blocker (no score cap). Do NOT also deduct for it under Breaking Changes — that would double-count.
 
 ### Target >= 1.35: Ingress NGINX Retired
 
@@ -102,8 +102,8 @@ to any target >= 1.35.
 ### Target == 1.35: IPVS Proxy Mode Deprecated
 
 **Check:** Read kube-proxy ConfigMap → check `mode` field
-- If `mode: ipvs` AND target is exactly 1.35 → MEDIUM severity. Deprecated; removed in 1.36.
-- Remediation: Switch to iptables or nftables mode before upgrading to 1.36.
+- If `mode: ipvs` AND target is exactly 1.35 → MEDIUM severity. IPVS proxy mode is deprecated as of 1.35; removal is slated for a future release (it is NOT removed in 1.36).
+- Remediation: Plan a migration to iptables or nftables mode ahead of the eventual removal.
 
 ### Target >= 1.35: --pod-infra-container-image Flag Removed
 
@@ -117,12 +117,12 @@ target >= 1.35.
   not whether the `--pod-infra-container-image` flag is actually set — the kubelet flag
   is not readable via the API. Presence is a conservative proxy.
 
-### Target >= 1.36: IPVS Proxy Mode Removed
+### Target >= 1.36: IPVS Proxy Mode Deprecated (removal in a future release)
 
 **Check:** Read kube-proxy ConfigMap → check `mode` field
-- If `mode: ipvs` → HIGH severity. IPVS mode is removed in 1.36 — kube-proxy will fail to
-  start in this mode after the upgrade, breaking Service routing cluster-wide.
-- Remediation: Switch to iptables or nftables mode BEFORE upgrading the control plane.
+- If `mode: ipvs` → MEDIUM severity. IPVS proxy mode is deprecated (as of 1.35) and slated for
+  removal in a future release; it is NOT removed in 1.36.
+- Remediation: Plan a migration to iptables or nftables mode ahead of the eventual removal.
 
 ### Target >= 1.36: gitRepo Volume Removed
 
@@ -146,7 +146,7 @@ leading zeros (e.g., `010.000.000.005`) or ambiguous CIDR (e.g., `192.168.0.5/24
 - Remediation: Update manifests, Helm charts, and automation to canonical IP/CIDR format before
   upgrading. See KEP-4858.
 
-### Target >= 1.36: SELinux Volume Labeling GA
+### Target >= 1.37: SELinux Volume Labeling GA
 
 **Check:** Only relevant on SELinux-enforcing nodes. Look for pods sharing a single volume
 between privileged and unprivileged containers.

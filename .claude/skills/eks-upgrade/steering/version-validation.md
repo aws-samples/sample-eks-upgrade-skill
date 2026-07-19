@@ -96,7 +96,11 @@ If the cluster version's Extended Support Until date has passed:
 
 **Rules:**
 - EKS requires upgrading **one minor version at a time** (e.g., 1.30 → 1.31, not 1.30 → 1.32)
-- Downgrades are not supported
+- A downgrade is not an assessment target for this forward-path logic — but reverting is not
+  impossible: EKS Version Rollback (launched 2026-07) can revert the control plane to the
+  previous minor version within **7 days** of an in-place upgrade, a single version only
+  (N→N-1), via console/CLI/SDK (`aws eks update-cluster-version` with the N-1 version → update
+  type `VersionRollback`), gated by `ROLLBACK_READINESS` cluster insights.
 - Same-version "upgrades" are invalid
 
 **How to check:**
@@ -111,8 +115,9 @@ If the cluster version's Extended Support Until date has passed:
 ### 1.3 — Version Skew Policy Check
 
 **Rules (Kubernetes version skew policy):**
-- kubelet can be at most N-2 relative to the control plane
-- If control plane is upgraded to target version, nodes must be within 2 minor versions
+- kubelet may be up to **N-3** minor versions behind the control plane (the N-3 kubelet
+  skew policy; the older N-2 limit applies only to kubelet versions below 1.25)
+- If the control plane is upgraded to the target version, nodes must be within 3 minor versions
 
 **How to check:**
 1. List all node groups → describe each for Kubernetes version
@@ -122,8 +127,8 @@ If the cluster version's Extended Support Until date has passed:
    Karpenter-provisioned and self-managed nodes have no node group; checking node
    groups alone misses them entirely.
 4. For each distinct kubelet minor version, calculate skew against the TARGET version (not current)
-5. Skew > 2: **BLOCKER** — nodes must be upgraded first
-6. Skew == 2: **WARNING** — at maximum skew, upgrade nodes promptly after control plane
+5. Skew > 3: **BLOCKER** — nodes must be upgraded first (beyond the N-3 skew policy)
+6. Skew == 3: **WARNING** — at maximum supported skew, upgrade nodes promptly after control plane
 
 **Output:** Each distinct kubelet minor version (with the node groups / nodes running it), skew against target, blocker/warning status.
 
@@ -137,5 +142,5 @@ If the cluster version's Extended Support Until date has passed:
 | Version UNSUPPORTED | CRITICAL | 15 pts (Category 10) |
 | Multi-hop upgrade needed | INFO | 0 pts |
 | Target version unreleased | N/A | Assessment aborted — no score |
-| Node skew == 2 (warning) | MEDIUM | 5 pts per distinct kubelet minor version (across ALL nodes) |
-| Node skew > 2 (blocker) | CRITICAL | 20 pts (caps category) |
+| Node skew == 3 (warning) | MEDIUM | 5 pts per distinct kubelet minor version (across ALL nodes) |
+| Node skew > 3 (blocker) | CRITICAL | 20 pts (caps category) |

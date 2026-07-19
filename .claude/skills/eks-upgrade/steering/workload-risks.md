@@ -147,6 +147,8 @@ that workload HAS requests — do not flag it.
 2. Check if those workloads have `lifecycle.preStop` hooks
 3. Check `terminationGracePeriodSeconds`
 
+**Externally-facing** = a workload backed by a LoadBalancer-type Service OR an Ingress (these receive external traffic and are sensitive to abrupt pod termination); ClusterIP-only workloads are NOT externally-facing.
+
 **Rating:** Missing preStop on externally-facing workloads = MEDIUM severity (1 pt).
 **Scoring home:** Category 6 (Workload Risks) MEDIUM — counted in the report-generation.md Category 6 pseudocode, subject to the 4-pt MEDIUM sub-cap.
 

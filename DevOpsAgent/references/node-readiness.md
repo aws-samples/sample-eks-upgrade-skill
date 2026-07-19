@@ -58,7 +58,9 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 kubelet will not operate against a containerd 1.x runtime. How this surfaces depends on node type:
 EKS-managed node groups (and Bottlerocket) pull containerd 2.0+ automatically when you upgrade the
 node group to 1.36, so they self-heal. Self-managed nodes and custom AMIs that pin containerd 1.x
-do NOT — their 1.36 kubelet will fail to run.
+do NOT — their 1.36 kubelet will fail to run. This is an assessment-time finding, not a launch
+failure at the point of the control-plane upgrade — managed nodes self-heal during the node-group
+upgrade, so it is scored HIGH but is NOT a hard blocker.
 
 **How to check:**
 1. List nodes → `status.nodeInfo.containerRuntimeVersion`
@@ -76,9 +78,10 @@ do NOT — their 1.36 kubelet will fail to run.
   - **Managed node group / Bottlerocket** → INFO. Upgrading the node group to 1.36 replaces the
     AMI and pulls containerd 2.0+ automatically. No manual action, but call it out so the user
     knows the runtime jump happens during node rotation.
-  - **Self-managed / custom AMI** → FAIL (HIGH) — hard blocker. The 1.36 kubelet will not run on
-    containerd 1.x. The AMI must be rebuilt with containerd 2.0+ BEFORE upgrading the node.
-    See report-generation.md hard blocker list.
+  - **Self-managed / custom AMI** → FAIL (HIGH) — outside containerd's tested matrix. The 1.36
+    kubelet is validated against containerd 2.x; running it on containerd 1.x is unsupported.
+    The AMI must be rebuilt with containerd 2.0+ BEFORE upgrading the node. Scored +5 under
+    Category 3 (Node Readiness); HIGH severity but NOT a hard blocker (no score cap).
 
 ### 5.4 — Self-Managed Nodes
 
@@ -94,9 +97,11 @@ do NOT — their 1.36 kubelet will fail to run.
 ### 5.5 — Subnet IP Capacity
 
 **Why this matters:**
-- EKS requires **at least 5 available IPs** in each cluster subnet to update the control plane
-  (EKS creates new ENIs for the upgraded API server). If any subnet has < 5 IPs, the
-  `update-cluster-version` API call will fail immediately.
+- EKS places control-plane ENIs for the upgraded API server across the cluster's subnets. A
+  single subnet with < 5 available IPs is a warning, not a failure — EKS can place the ENIs in
+  other subnets. The `update-cluster-version` API call fails only when the cluster subnets
+  COLLECTIVELY cannot provide enough free IPs for ENI placement (collective insufficiency = sum
+  of `AvailableIpAddressCount` across all cluster subnets < 5).
 - During node group rolling updates, new nodes are launched before old nodes are terminated
   (surge). Each new node consumes 1 IP for its primary ENI plus additional IPs for the VPC CNI
   warm pool (pod IPs). Insufficient capacity causes the node group update to hang.
@@ -111,11 +116,12 @@ do NOT — their 1.36 kubelet will fail to run.
 
 **Thresholds:**
 
-| Available IPs | Verdict | Severity |
+| Available IPs (single subnet) | Verdict | Severity |
 |---------------|---------|----------|
-| < 5 | **HARD BLOCKER** — control plane upgrade will fail | CRITICAL |
+| < 5 — single low subnet among otherwise-healthy subnets | **WARNING** — control plane OK (ENIs placed in other subnets); becomes a hard blocker ONLY under collective insufficiency (see below) | MEDIUM |
 | 5–15 | **WARNING** — control plane OK, but node rolling update at risk if surge needs more IPs | MEDIUM |
 | > 15 | PASS | — |
+| Collective: sum of `AvailableIpAddressCount` across ALL cluster subnets < 5 | **HARD BLOCKER** — control plane upgrade will fail (EKS cannot place ENIs in any subnet) | CRITICAL |
 
 **Important context for the 5–15 warning:**
 The exact number of IPs needed during node group surge depends on:
@@ -126,12 +132,14 @@ The exact number of IPs needed during node group surge depends on:
 Do NOT report a precise "you need X IPs" number — instead flag the risk and advise the user
 to verify capacity is sufficient for their instance type and CNI config.
 
-**If subnet has < 5 IPs, report:**
+**If a subnet has < 5 IPs (single low subnet among otherwise-healthy subnets), report as a WARNING:**
 
-> **❌ Subnet IP exhaustion — control plane upgrade will fail**
+> **⚠️ Subnet low on free IPs**
 >
 > Subnet `<subnet-id>` in `<az>` has only `<N>` available IPs (CIDR: `<cidr>`).
-> EKS requires at least 5 free IPs per subnet to place control plane ENIs during an upgrade.
+> EKS places control-plane ENIs across the cluster's subnets during an upgrade; a single low
+> subnet is a warning. This becomes a hard blocker ONLY under collective insufficiency —
+> defined as the sum of `AvailableIpAddressCount` across ALL cluster subnets being < 5.
 >
 > **Remediation (choose one):**
 > 1. Remove unused ENIs: `aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=<subnet-id> Name=status,Values=available --query 'NetworkInterfaces[].NetworkInterfaceId'`
@@ -160,12 +168,13 @@ to verify capacity is sufficient for their instance type and CNI config.
 
 | Finding | Deduction |
 |---------|-----------|
-| Subnet IPs < 5 (hard blocker) | 5 pts + hard blocker override (caps score ≤ 59%) |
+| Subnet IPs < 5 — single low subnet (warning) | 2 pts (always applies, per low subnet) |
+| Control-plane subnets collectively can't place ENIs — sum of `AvailableIpAddressCount` across ALL subnets < 5 (hard blocker) | 5 pts + hard blocker override (caps score ≤ 59%); additional to any +2 warnings |
 | Subnet IPs 5–15 (warning) | 2 pts |
 | AL2 nodes (target < 1.33) — Node count (Category 8) | 2-5 pts (max 5) |
 | AL2 nodes (target >= 1.33) — Breaking Change "AL2 AMI Not Available" (Category 1) | 10 pts (HIGH) |
 | AL2 nodes (target >= 1.33) — Node count (Category 8) | 2-5 pts (max 5) |
 | Containerd 1.x (target < 1.36, or managed node on any target) | 2 pts |
-| Containerd 1.x on self-managed/custom AMI (target >= 1.36) | 5 pts + hard blocker override (caps score ≤ 59%) |
+| Containerd 1.x on self-managed/custom AMI (target >= 1.36) | 5 pts (HIGH — outside containerd's tested matrix; NOT a score-cap blocker) |
 | Self-managed nodes present | 3 pts (binary — Category 3, scored in report-generation.md pseudocode) |
 | Max category (combined with version-validation skew) | 20 pts |

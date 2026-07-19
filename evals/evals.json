@@ -41,13 +41,14 @@
     },
     {
       "id": 4,
-      "name": "hard-blocker-subnet-ips",
+      "name": "subnet-single-low-warning",
       "prompt_file": "scenarios/04-subnet-exhausted.md",
-      "expected_output": "Score ≤59%, rating NOT READY, subnet IP exhaustion flagged",
+      "expected_output": "Score 87% GOOD, no hard blocker override; a single low subnet among healthy subnets is a warning (collective IPs 3+12=15 ≥5), not a blocker.",
       "assertions": [
-        {"name": "score_capped_59", "check": "score <= 59"},
-        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
-        {"name": "subnet_in_blockers", "check": "Blockers section mentions subnet or IP"}
+        {"name": "score_is_87", "check": "score == 87"},
+        {"name": "rating_good", "check": "report contains 'GOOD'"},
+        {"name": "no_hard_blocker_override", "check": "score > 59"},
+        {"name": "subnet_warning_not_blocker", "check": "low subnet noted as a warning, not in Blockers as a hard blocker"}
       ]
     },
     {
@@ -64,13 +65,14 @@
     },
     {
       "id": 6,
-      "name": "k8s-136-selfmanaged-containerd-blocker",
+      "name": "k8s-136-selfmanaged-containerd-not-blocker",
       "prompt_file": "scenarios/06-k8s-136-selfmanaged-containerd.md",
-      "expected_output": "Score ≤59% NOT READY. Self-managed containerd 1.x on target 1.36 is a hard blocker; gitRepo volume flagged HIGH.",
+      "expected_output": "Score 76% FAIR, no hard blocker override. Self-managed containerd 1.x on target 1.36 is HIGH severity (+5 Cat 3) but NOT a hard blocker; gitRepo volume flagged HIGH.",
       "assertions": [
-        {"name": "score_capped_59", "check": "score <= 59"},
-        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
-        {"name": "containerd_in_blockers", "check": "Blockers section mentions containerd"},
+        {"name": "score_is_76", "check": "score == 76"},
+        {"name": "rating_fair", "check": "report contains 'FAIR'"},
+        {"name": "no_hard_blocker_override", "check": "score > 59"},
+        {"name": "containerd_not_blocker", "check": "containerd noted as HIGH but not in Blockers as a hard blocker"},
         {"name": "gitrepo_flagged", "check": "report mentions gitRepo volume as HIGH"}
       ]
     },
