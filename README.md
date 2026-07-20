@@ -173,34 +173,55 @@ Claude Code merges MCP config from global (`~/.claude/settings.json`) and projec
 
 ### AWS IAM
 
-Replace `<region>` and `<account-id>` with your values. The second statement uses `"*"` because those actions do not support resource-level permissions — see the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
+Replace `<region>` and `<account-id>` with your values. In the second statement, `eks:ListClusters`, `eks:DescribeAddonVersions`, and the `ec2:Describe*` actions use `"*"` because they do not support resource-level permissions. The `iam:` read actions (`iam:GetRole`, `iam:ListAttachedRolePolicies`, `iam:ListRolePolicies`, `iam:GetRolePolicy`) *do* support resource-level scoping and can be restricted to your node/cluster role ARNs if you prefer. See the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "EKSReadScoped",
+      "Sid": "EKSReadCluster",
       "Effect": "Allow",
       "Action": [
         "eks:DescribeCluster",
         "eks:ListNodegroups",
-        "eks:DescribeNodegroup",
         "eks:ListAddons",
-        "eks:DescribeAddon",
-        "eks:DescribeAddonVersions",
         "eks:ListInsights",
         "eks:DescribeInsight",
-        "eks:ListAccessEntries",
-        "eks:DescribeAccessEntry"
+        "eks:ListAccessEntries"
       ],
       "Resource": "arn:aws:eks:<region>:<account-id>:cluster/*"
+    },
+    {
+      "Sid": "EKSReadNodegroup",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeNodegroup"
+      ],
+      "Resource": "arn:aws:eks:<region>:<account-id>:nodegroup/*/*/*"
+    },
+    {
+      "Sid": "EKSReadAddon",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeAddon"
+      ],
+      "Resource": "arn:aws:eks:<region>:<account-id>:addon/*/*/*"
+    },
+    {
+      "Sid": "EKSReadAccessEntry",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeAccessEntry"
+      ],
+      "Resource": "arn:aws:eks:<region>:<account-id>:access-entry/*/*"
     },
     {
       "Sid": "AccountLevelReads",
       "Effect": "Allow",
       "Action": [
         "eks:ListClusters",
+        "eks:DescribeAddonVersions",
         "ec2:DescribeSubnets",
         "ec2:DescribeSecurityGroupRules",
         "iam:GetRole",
@@ -272,23 +293,32 @@ eks-upgrade-skill/
 │   ├── sample-report-summary.png
 │   ├── sample-report-findings.png
 │   └── sample-report-upgrade-plan.png
-└── .claude/
-    └── skills/
-        └── eks-upgrade/
-            ├── SKILL.md              # Skill definition & agent workflow
-            ├── steering/             # Assessment logic (agent instructions)
-            │   ├── version-validation.md
-            │   ├── breaking-changes.md
-            │   ├── deprecated-apis.md
-            │   ├── addon-compatibility.md
-            │   ├── node-readiness.md
-            │   ├── workload-risks.md
-            │   ├── upgrade-insights.md
-            │   └── report-generation.md
-            ├── data/
-            │   └── oss_addon_registry.json
-            └── tools/
-                └── md_to_html.py
+├── .claude/
+│   └── skills/
+│       └── eks-upgrade/
+│           ├── SKILL.md              # Skill definition & agent workflow
+│           ├── steering/             # Assessment logic (agent instructions)
+│           │   ├── version-validation.md
+│           │   ├── breaking-changes.md
+│           │   ├── deprecated-apis.md
+│           │   ├── addon-compatibility.md
+│           │   ├── node-readiness.md
+│           │   ├── workload-risks.md
+│           │   ├── upgrade-insights.md
+│           │   └── report-generation.md
+│           ├── data/
+│           │   └── oss_addon_registry.json
+│           └── tools/
+│               └── md_to_html.py
+├── DevOpsAgent/                      # eks-upgrade-check skill (packaging source)
+│   ├── SKILL.md                     # Skill definition & agent workflow
+│   ├── README.md                    # Skill packaging & zip build instructions
+│   ├── references/                  # Assessment logic (agent instructions)
+│   └── assets/
+│       └── oss_addon_registry.json
+└── evals/                           # Evaluation scenarios & harness
+    ├── evals.json                   # Eval definitions
+    └── scenarios/                   # Per-scenario fixtures
 ```
 
 ## Contributing

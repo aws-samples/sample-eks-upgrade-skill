@@ -38,9 +38,10 @@ See [`SKILL.md`](SKILL.md) for the full assessment workflow.
 
 **Option B — Upload as a zip**
 
-1. From **inside** this `DevOpsAgent/` folder, zip its contents so that `SKILL.md` sits at the zip root:
+1. From **inside** this `DevOpsAgent/` folder, first copy the repository `LICENSE` in so it ships inside the zip, then zip the contents so that `SKILL.md` sits at the zip root:
 
    ```bash
+   cp ../LICENSE ./LICENSE
    zip -r ../eks-upgrade-check-skill.zip .
    ```
 
@@ -75,7 +76,16 @@ The Agent Space role also needs read access to the supporting AWS APIs the skill
 
 - **EKS (read):** `DescribeCluster`, `ListClusters`, `ListNodegroups`, `DescribeNodegroup`, `ListAddons`, `DescribeAddon`, `DescribeAddonVersions`, `ListInsights`, `DescribeInsight`
 - **EC2 (read):** `DescribeSubnets`
-- **IAM (read):** `GetRole`, `ListAttachedRolePolicies`, `ListRolePolicies`, `GetRolePolicy`
+
+### Web search / web fetch capability
+
+The Agent Space must also have **web search / web fetch enabled**. The skill verifies OSS
+add-on compatibility live against upstream sources (the authoritative URLs in
+`assets/oss_addon_registry.json`, plus fallback web searches). If the agent cannot reach
+those sources — because web access is disabled — add-on version verification degrades to
+`UNKNOWN_VERIFIABLE`: the add-on is identified but its compatibility with the target
+Kubernetes version cannot be confirmed. Enable web access so add-on checks resolve to a
+definitive verdict rather than an unverified one.
 
 ## Differences from the Claude Code version
 
@@ -87,7 +97,7 @@ The parent repo targets Claude Code; this port adapts the skill to the DevOps Ag
 | `steering/` for assessment logic | `references/` (same content, per Agent Skills spec) |
 | `data/` and `tools/` directories | `assets/` for data files |
 | `${CLAUDE_SKILL_DIR}/...` path variables | Relative paths (`references/`, `assets/`) |
-| `.mcp.json` for local MCP servers (`awslabs.eks-mcp-server`, `awslabs.aws-documentation-mcp-server`) | MCP servers / tool access configured at the Agent Space level |
+| Local tool servers wired up per-project for cluster access and documentation lookup | Live cluster access and documentation/web lookup are provided at the Agent Space level |
 | `md_to_html.py` script for HTML reports | Script execution not supported — the agent generates report artifacts directly (Markdown, or HTML inline) |
 | Claude Code allowed-tools + `Bash`/`kubectl` | EKS / EC2 / Kubernetes read APIs available in the Agent Space |
 | Tool names like `search_documentation`, `webFetch`, `get_eks_insights` | Generalized to capability descriptions (documentation search, web fetch, EKS Insights APIs) |

@@ -5,8 +5,9 @@ description: Assess EKS cluster upgrade readiness by running automated checks ac
   node readiness, workload risks, AWS Upgrade Insights, upgrade plan), calculate a
   readiness score (0-100%), and generate a detailed report with remediation steps and
   pre-filled AWS CLI commands. Use this skill when investigating EKS upgrade safety,
-  Kubernetes version skew, deprecated API usage, addon compatibility, Karpenter
-  compatibility, node upgrade readiness, or control plane upgrade planning.
+  or, in the context of a version upgrade, Kubernetes version skew, deprecated API usage,
+  addon compatibility, or Karpenter version; also node upgrade readiness or control plane
+  upgrade planning.
 ---
 
 # EKS Upgrade Readiness Skill
@@ -35,6 +36,25 @@ All operations are **read-only** — this skill does not modify your cluster.
 ## Readiness Score
 
 The skill calculates a weighted readiness score:
+
+| Category | Max Deduction | Rationale |
+|----------|--------------|-----------|
+| Breaking Changes | 25 pts | Highest risk — can break apps |
+| Deprecated APIs | 20 pts | Actionable, fixable pre-upgrade |
+| Node Readiness (skew + subnet IPs) | 20 pts | Can block upgrade entirely |
+| Unsupported Version | 15 pts | No security patches, urgent upgrade needed |
+| Add-on Compatibility | 15 pts | Critical > optional add-ons |
+| Karpenter | 10 pts | Only if installed |
+| Workload Risks | 10 pts | Best-practice, not blockers |
+| AWS Upgrade Insights | 10 pts | Official AWS checks |
+| AL2 Nodes / Behavioral | 10 pts | Informational |
+
+**Hard Blocker Override:** If any hard blocker is detected (e.g., incompatible Karpenter,
+critical add-on DEGRADED, cluster subnets collectively cannot place control-plane ENIs,
+cluster not ACTIVE), the score is capped at ≤ 59% (NOT READY) regardless of other findings.
+See `references/report-generation.md` for the full list.
+
+**Score Interpretation:**
 
 | Score | Level | Meaning |
 |-------|-------|---------|
@@ -80,6 +100,8 @@ Use EKS ListClusters to discover available clusters, then apply this decision ta
 **Action 2 — Describe the selected cluster**
 
 Use EKS DescribeCluster and record: cluster name, Kubernetes version, platform version, region, status, account ID.
+
+> **Account ID hygiene:** the account ID is sensitive. If the generated report will be shared outside the account, mask or omit the account ID before sharing.
 
 **Action 2b — Validate cluster status**
 
@@ -143,14 +165,17 @@ Follow the scoring algorithm in `references/report-generation.md` to calculate t
 
 ## Report Output Format
 
-Reports are generated in Markdown format with the filename pattern:
-`EKS-Upgrade-Assessment-<cluster>-<current>-to-<target>-<YYYY-MM-DD>-<HHMM>.md`
+The report is rendered as Markdown **inline in your response** — the DevOps Agent
+runtime cannot write files. Use the report-title pattern from
+`references/report-generation.md` as the report's title/heading, not as a saved
+filename. There is only one delivery path: render the full report inline.
 
 Each report includes:
 - Readiness score with breakdown
-- Blockers & critical actions
+- Blockers (hard blockers only — these cap the score at ≤59)
+- Critical Actions (other HIGH-severity findings, not score-capping)
 - Recommended actions
 - Informational findings
 - Evidence tables (add-ons, nodes, workloads)
-- Step-by-step upgrade plan with pre-filled CLI commands
+- Step-by-step upgrade plan with pre-filled commands
 - AWS reference links
