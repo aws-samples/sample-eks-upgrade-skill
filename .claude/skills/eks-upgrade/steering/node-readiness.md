@@ -43,7 +43,7 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 **Rating:**
 - No AL2 nodes → PASS
 - AL2 nodes present, target < 1.33 → WARN (plan migration)
-- AL2 nodes present, target >= 1.33 → FAIL (blocker — no AL2 AMI available)
+- AL2 nodes present, target >= 1.33 → FAIL (HIGH — no AL2 AMI available; migrate to AL2023). Scoring is deferred to `report-generation.md` (see Score Impact below): a cluster with a mix of AL2 and AL2023 nodes is not a hard score-cap override — the deduction is applied per that category, not treated as an automatic hard blocker here.
 
 **Migration guidance (report as recommended remediation steps):**
 1. Recommend: create a new node group with the AL2023 AMI type

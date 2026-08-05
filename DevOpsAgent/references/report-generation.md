@@ -7,6 +7,28 @@ After all assessment checks are complete, calculate the readiness score and gene
 
 You MUST follow this algorithm exactly. Do NOT interpret loosely. Every rule below is deterministic.
 
+### 1.0 — Denied or partial reads → UNKNOWN / not-scored (never a silent 0)
+
+The scoring loops below are all "for each X found in cluster" — so a category whose
+backing Kubernetes or EKS read was **denied (403 / Forbidden), errored, or returned only
+partial data** yields zero matches and would otherwise deduct 0, reading as a falsely
+clean category. That is wrong: empty input from a FAILED read is the absence of an
+assessment, not a clean bill of health. This generalizes the `references/workload-risks.md`
+Fargate / no-nodes discipline (the mandatory "node checks were N/A, a high score reflects
+only what could be assessed" note) to **every** category.
+
+**RULE:** If the read(s) backing a category could not be completed (denied, errored, or
+partial), that category is reported **UNKNOWN / not-scored** — it does NOT contribute a
+0-point "clean" deduction, and it MUST be listed in the mandatory `## Unassessed` report
+section (Step 4). A category may be scored ONLY when its backing reads actually succeeded.
+
+**VERDICT IMPACT:** A cluster with any UNKNOWN / not-scored category MUST NOT be presented
+as READY on the strength of the categories that did run. The headline rating carries the
+caveat and the `## Unassessed` section makes the un-run checks explicit, so a READY verdict
+can never travel over checks that were never executed. (The Kubernetes RBAC preflight in
+`SKILL.md` is the front-line guard; this rule is the scoring-side backstop for any read
+that still fails at runtime.)
+
 ### 1.1 — Scoring Algorithm (Pseudocode)
 
 ```
@@ -40,8 +62,10 @@ breaking_changes_deduction = min(breaking_changes_deduction, 25)
 # in managedFields — writer identity is the only per-object signal. Objects whose
 # only removed-version trace comes from internal APF controllers (managers named
 # api-priority-and-fairness-config-* or eks-internal) are false positives and do NOT
-# count. (eks-internal: exact manager string unverified vs public AWS docs as of
-# 2026-07; AWS documents "manager: eks" — kept conservatively.) An API path is counted
+# count. (AWS-managed field writers are tagged "manager: eks" — both fully- and
+# partially-managed fields carry this string, per AWS EKS docs "Determine fields you can
+# customize for Amazon EKS add-ons" (kubernetes-field-management.html); internal
+# control-plane writers such as eks-internal are likewise not user tools.) An API path is counted
 # only if at least one object on it has a user-tool writer of a removed version;
 # otherwise the path contributes 0 pts (report it under Informational Findings instead).
 deprecated_apis_deduction = 0
@@ -141,6 +165,14 @@ addon_deduction = min(addon_deduction, 15)
 # or not-applicable (0). Karpenter is NOT an EKS managed add-on, so it is scored HERE,
 # not in the Category 4 add-on loop. This is the ONE executable home for the
 # unknown-version UNKNOWN_VERIFIABLE (2 pts) verdict — do not also score it in Cat 4.
+# ASYMMETRY vs Cluster Autoscaler (deliberate, not an oversight): an INCOMPATIBLE Karpenter
+# scores 10 pts AND is a hard blocker, whereas an INCOMPATIBLE Cluster Autoscaler is an
+# optional Category-4 add-on (+3, no cap). Rationale: Karpenter OWNS node lifecycle — it
+# provisions/deprovisions nodes directly, so an incompatible Karpenter means NO new nodes
+# get created (cluster-breaking during an upgrade's node roll). Cluster Autoscaler only
+# resizes managed/self-managed node groups that continue to function via the EKS/ASG control
+# path even when CA itself is incompatible — autoscaling degrades but node provisioning does
+# not break. The blast radius differs, so the score does.
 karpenter_deduction = 0
 if karpenter_installed:
     if karpenter_version_incompatible_with_target:
@@ -222,13 +254,21 @@ al2_deduction = min(al2_deduction, 5)
 
 # --- Category 9: Behavioral Changes (max deduction: 5) ---
 # COUNTING UNIT: each distinct behavioral change TYPE that applies to the target version.
-# EXCLUSION: The 1.32 "Anonymous Auth Restricted" change is scored under Category 1
-# (Breaking Changes), NOT here. Do NOT count it in this category — that double-counts.
+# STATUS: NO steering file currently defines or detects a scorable behavioral-change TYPE
+# for this category. The one behavioral change the skill knows about — the 1.32 "Anonymous
+# Auth Restricted" change — is scored under Category 1 (Breaking Changes), NOT here (its
+# single scoring home; counting it here would double-count). With no detector wired to this
+# category, `behavioral_deduction` is 0 by construction — do NOT invent behavioral-change
+# TYPES or assign points to satisfy the loop. If a future reference file defines a detectable
+# behavioral change with an explicit severity, this loop scores it; until then it contributes
+# 0, and any awareness-only behavioral notes are surfaced under Informational Findings
+# (no deduction).
 behavioral_deduction = 0
-for each behavioral_change applicable to target:
+for each behavioral_change_TYPE explicitly defined-and-detected by a reference file:
     if severity == MEDIUM: behavioral_deduction += 2
     if severity == LOW:    behavioral_deduction += 1
 behavioral_deduction = min(behavioral_deduction, 5)
+# As of 2026-08-05 no reference file defines such a TYPE, so this evaluates to 0.
 
 # --- Category 10: Unsupported Version (max deduction: 15) ---
 # TRIGGER: cluster's current version has passed its Extended Support Until date.
@@ -365,20 +405,26 @@ in this order:
 4. `## Critical Actions`
 5. `## Recommended Actions`
 6. `## Informational Findings`
-7. `## Evidence`
-8. `## Upgrade Plan`
-9. `## AWS Reference Links`
+7. `## Unassessed`
+8. `## Evidence`
+9. `## Upgrade Plan`
+10. `## AWS Reference Links`
 
 `## Blockers` lists ONLY hard-blocker findings (the ones that cap the score at ≤59 —
 the exhaustive list in the Hard Blocker Override pseudocode). All other HIGH-severity
 findings go under `## Critical Actions`. Do NOT lump them together.
 
-If ANY of sections 3, 4, 5, 6, 8, or 9 is missing, the report is invalid — add the
-missing section (with "No blockers identified." / "No critical actions." /
-"No recommended actions." / "None." placeholder text if empty) before returning it
-to the user.
+`## Unassessed` lists every category reported UNKNOWN / not-scored per Step 1.0 (backing
+read denied, errored, or partial). It MUST appear even if empty (write "All categories were
+assessed — no denied or partial reads."). This section is load-bearing: a READY/GOOD verdict
+must never travel over un-run checks, so any such category is surfaced here explicitly.
 
-Sections 3, 4, 5, and 6 MUST appear before section 7 (Evidence). If they appear
+If ANY of sections 3, 4, 5, 6, 7, 9, or 10 is missing, the report is invalid — add the
+missing section (with "No blockers identified." / "No critical actions." /
+"No recommended actions." / "None." / "All categories were assessed — no denied or partial
+reads." placeholder text if empty) before returning it to the user.
+
+Sections 3, 4, 5, 6, and 7 MUST appear before section 8 (Evidence). If they appear
 after Evidence, the report is invalid — reorder before returning.
 
 ### 3.2 Content checks
@@ -386,7 +432,11 @@ after Evidence, the report is invalid — reorder before returning.
 1. Every hard-blocker finding (caps score ≤59) must appear in "Blockers"; every other
    HIGH/CRITICAL finding must appear in "Critical Actions"
 2. Every MEDIUM finding must appear in "Recommended Actions"
-3. Every LOW finding must appear in "Informational Findings"
+3. Every LOW and every INFO finding must appear in "Informational Findings". INFO items
+   (e.g. eval-7's managed-node containerd 1.x on target >= 1.36, which is INFO / auto-handled
+   and NOT a blocker; and the deprecated-API paths whose only removed-version writer is an
+   internal APF controller, 0 pts per Step 3b) have their section home HERE — they are
+   surfaced for awareness, not dropped, even when they carry a 0-pt or non-blocking deduction.
 4. The executive summary must match the findings — don't call something critical if it's medium
 5. Score components must add up correctly
 6. **CROSS-CHECK RULE:** Before writing any count (e.g., "5 deployments missing probes"),
@@ -409,11 +459,18 @@ after Evidence, the report is invalid — reorder before returning.
    Breakdown, and the Master Finding List do not all agree (accounting for the hard-blocker
    cap), the report is INVALID — recompute and fix before returning it. Never publish a score
    that differs from the table it is derived from (except the documented ≤59 blocker cap).
+   Categories reported UNKNOWN / not-scored (Step 1.0) contribute NO row to the Pts sum and
+   NO deduction — they are excluded from this equality check by construction and are
+   reconciled instead against the `## Unassessed` section (every UNKNOWN category MUST appear
+   there). The headline rating must still carry the scope caveat whenever any category is
+   UNKNOWN.
 10. **MANDATORY-FINDING PRESENCE:** Every "always flag" item from the steering files
    MUST appear as a row in the Master Finding List when its target condition is met.
    When the upgrade crosses INTO the restriction (current <= 1.31 AND target >= 1.32) this
-   includes "Anonymous Auth Restricted" (Category 1, 4 pts). A cluster already on 1.32+ is
-   past this crossing — do NOT add it.
+   includes "Anonymous Auth Restricted" (Category 1, 4 pts — subject to the CRB gate in
+   breaking-changes.md: run its ClusterRoleBinding probe for `system:unauthenticated` on a
+   non-health endpoint to confirm real impact before writing the finding). A cluster already
+   on 1.32+ is past this crossing — do NOT add it.
    If an always-flag item is absent from the table, the assessment is incomplete —
    add it before scoring.
 
@@ -443,21 +500,22 @@ entirely (do not leave it as "N/A" or "None found").
 3. `## Blockers` — hard-blocker findings ONLY (caps score ≤59); MUST appear even if empty (write "No blockers identified.")
 4. `## Critical Actions` — other HIGH/CRITICAL findings; MUST appear even if empty (write "No critical actions.")
 5. `## Recommended Actions` — MUST appear even if empty (write "No recommended actions.")
-6. `## Informational Findings` — MUST appear even if empty (write "None.")
-7. `## Evidence` — container for the detailed tables below
+6. `## Informational Findings` — LOW and INFO items; MUST appear even if empty (write "None.")
+7. `## Unassessed` — categories reported UNKNOWN / not-scored (Step 1.0); MUST appear even if empty (write "All categories were assessed — no denied or partial reads.")
+8. `## Evidence` — container for the detailed tables below
    - `### Add-on Inventory`
    - `### Unknown & Unidentified Add-ons` — OPTIONAL (only if any UNKNOWN_* verdicts exist)
    - `### Node Group Summary`
    - `### Workload Risk Summary`
-8. `## Upgrade Plan` — always required
-9. `## AWS Reference Links` — always required
+9. `## Upgrade Plan` — always required
+10. `## AWS Reference Links` — always required
 
-The four action sections (Blockers, Critical Actions, Recommended, Informational) come
-BEFORE the Evidence tables. This is intentional — readers open the report to answer
-"what do I need to do?", not "what did the tool find?". Evidence supports the action
-items; it doesn't precede them.
+The five reporting sections (Blockers, Critical Actions, Recommended, Informational,
+Unassessed) come BEFORE the Evidence tables. This is intentional — readers open the report
+to answer "what do I need to do?", not "what did the tool find?". Evidence supports the
+action items; it doesn't precede them.
 
-```markdown
+````markdown
 # EKS Upgrade Readiness Assessment
 
 | Field | Value |
@@ -470,6 +528,8 @@ items; it doesn't precede them.
 | Assessment Date | [YYYY-MM-DD HH:MM] |
 
 > Account ID hygiene: the account ID is sensitive. If this report will be shared outside the account, mask or omit the `[account-id]` value before sharing.
+
+> Scope: this assessment reflects only the checks that could be run against this cluster with the access available. A READY/GOOD rating means no blockers were detected **in the areas assessed** — it is not a guarantee of overall upgrade safety. See `## Unassessed` for any category whose backing read was denied or partial.
 
 ---
 
@@ -505,7 +565,7 @@ Override list). These MUST be resolved before upgrading. If none, write: "No blo
 - **What we found:** [specific to this cluster]
 - **Impact if not addressed:** [real-world consequence]
 - **Remediation:**
-  ```
+  ```bash
   [pre-filled command with actual cluster name and region]
   ```
 - **Reference:** [AWS doc link]
@@ -522,7 +582,7 @@ score. If none, write: "No critical actions."]
 - **What we found:** [specific to this cluster]
 - **Impact if not addressed:** [real-world consequence]
 - **Remediation:**
-  ```
+  ```bash
   [pre-filled command with actual cluster name and region]
   ```
 - **Reference:** [AWS doc link]
@@ -542,7 +602,24 @@ score. If none, write: "No critical actions."]
 
 ## Informational Findings
 
-[LOW severity items and behavioral changes — awareness only. If none, write: "None."]
+[LOW and INFO items — awareness only, no action required. Includes: behavioral-change
+notes; managed-node containerd 1.x on target >= 1.36 (INFO / auto-handled, not a blocker);
+and deprecated-API paths whose only removed-version writer is an internal APF controller
+(0 pts per deprecated-apis.md Step 3b). If none, write: "None."]
+
+---
+
+## Unassessed
+
+[Categories reported UNKNOWN / not-scored per Step 1.0 — any category whose backing
+Kubernetes/EKS read was denied (403 / Forbidden), errored, or returned only partial data.
+These were NOT scored (they did not contribute a 0-pt "clean" deduction). A READY/GOOD
+rating does NOT cover anything listed here. If none, write: "All categories were assessed —
+no denied or partial reads."]
+
+| Category | Read That Failed | Reason | What To Do |
+|----------|------------------|--------|------------|
+| [e.g. Deprecated APIs] | [e.g. list flowschemas / managedFields] | [denied 403 / error / partial] | [grant the RBAC read, then re-run] |
 
 ---
 
@@ -619,24 +696,39 @@ only Auto Mode nodes auto-roll-back (managed / self-managed / hybrid node groups
 operator's job); rolling back to a version in extended support requires setting the cluster upgrade
 policy to `EXTENDED` first. Advisory only — it does not change the readiness score.
 
-### Step 1: Update Add-ons (if needed)
+> **Ordering follows AWS authority** (EKS Best Practices "Cluster Upgrades" and the
+> `update-cluster-version` flow): upgrade the **control plane first**, then the **data plane
+> (nodes)**, then **add-ons**. The single documented exception is Karpenter — see the
+> conditional Step 0 below.
+
+### Step 0 (CONDITIONAL — Karpenter only): Upgrade Karpenter FIRST, before the control plane
 ```bash
-aws eks update-addon --cluster-name [CLUSTER] --addon-name [ADDON] --addon-version [VERSION] --region [REGION]
+# ONLY if Karpenter is installed AND its running version is not compatible with [TARGET].
+# Karpenter is the documented exception to control-plane-first ordering: it must understand
+# the target version's node/API shapes before the control plane moves, or it may fail to
+# provision compatible nodes during the roll. Upgrade Karpenter to a [TARGET]-compatible
+# version here, THEN proceed to Step 1. If Karpenter is not installed, skip this step.
+helm upgrade karpenter oci://public.ecr.aws/karpenter/karpenter --version [KARPENTER_TARGET_VERSION] --namespace [KARPENTER_NAMESPACE] --reuse-values
 ```
 
-### Step 2: Upgrade Control Plane
+### Step 1: Upgrade Control Plane
 ```bash
 aws eks update-cluster-version --name [CLUSTER] --kubernetes-version [TARGET] --region [REGION]
 ```
 
-### Step 3: Monitor Upgrade Progress
+### Step 2: Monitor Upgrade Progress
 ```bash
 aws eks describe-update --name [CLUSTER] --update-id [UPDATE_ID] --region [REGION]
 ```
 
-### Step 4: Upgrade Node Groups
+### Step 3: Upgrade Node Groups (data plane — after the control plane is ACTIVE on [TARGET])
 ```bash
 aws eks update-nodegroup-version --cluster-name [CLUSTER] --nodegroup-name [NODEGROUP] --region [REGION]
+```
+
+### Step 4: Update Add-ons (after the control plane — to the [TARGET]-compatible versions)
+```bash
+aws eks update-addon --cluster-name [CLUSTER] --addon-name [ADDON] --addon-version [VERSION] --region [REGION]
 ```
 
 ### Step 5: Verify
@@ -654,7 +746,7 @@ kubectl get pods -A | grep -v Running | grep -v Completed
 ---
 
 *This report was generated by an AWS DevOps Agent skill provided as sample code for educational and demonstration purposes only. Findings should be reviewed and validated before acting on them. See the project's README and LICENSE for full terms.*
-```
+````
 
 ## Step 5: Look Up AWS References
 
