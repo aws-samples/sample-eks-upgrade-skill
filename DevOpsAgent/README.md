@@ -140,6 +140,11 @@ rules:
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets"]
     verbs: ["get", "list"]
+  # workload-risks: externally-facing detection (LoadBalancer-type Services)
+  # breaking-changes (target >= 1.33): custom Endpoints still in use
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list"]
   # deprecated-apis: live scan for removed/deprecated API usage
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies", "ingresses"]
@@ -149,6 +154,17 @@ rules:
     verbs: ["get", "list"]
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+    verbs: ["get", "list"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list"]
+  # deprecated-apis + breaking-changes (target >= 1.29 / >= 1.32): APF v1beta2/v1beta3 removals
+  - apiGroups: ["flowcontrol.apiserver.k8s.io"]
+    resources: ["flowschemas", "prioritylevelconfigurations"]
+    verbs: ["get", "list"]
+  # breaking-changes (target >= 1.31): scan ClusterRoleBindings for system:unauthenticated subjects
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterrolebindings"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -167,7 +183,10 @@ roleRef:
 
 (Core workload reads — Deployments, DaemonSets, StatefulSets, Pods, Nodes, events, pod
 logs — are already granted by `AmazonAIOpsAssistantPolicy` from Step 1; the ClusterRole
-adds only what that policy does not cover.)
+adds only what that policy does not cover. `services` and `endpoints` are granted
+explicitly above rather than assumed from the managed policy, so the workload-risks
+externally-facing check and the target-≥1.33 Endpoints-deprecation check never depend on
+that policy's exact core-resource scope.)
 
 Unlike the AWS CLI commands above, `kubectl` does not take a cluster or region flag — it
 applies to whatever cluster your current kubeconfig context points at. Point it at the
@@ -209,6 +228,12 @@ regardless of the access entry, so always check the group above too):
 kubectl auth can-i list poddisruptionbudgets --as-group eks-upgrade-check --as upgrade-check
 kubectl auth can-i list customresourcedefinitions --as-group eks-upgrade-check --as upgrade-check -A
 kubectl auth can-i list mutatingwebhookconfigurations --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list horizontalpodautoscalers --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list flowschemas.flowcontrol.apiserver.k8s.io --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list prioritylevelconfigurations.flowcontrol.apiserver.k8s.io --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list clusterrolebindings --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list services --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list endpoints --as-group eks-upgrade-check --as upgrade-check
 ```
 
 All should print `yes`. The `-A` flag on cluster-scoped resources avoids a spurious
