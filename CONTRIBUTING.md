@@ -44,6 +44,38 @@ GitHub provides additional document on [forking a repository](https://help.githu
 Looking at the existing issues is a great way to find something to contribute on. As our projects, by default, use the default GitHub issue labels (enhancement/bug/duplicate/help wanted/invalid/question/wontfix), looking at any 'help wanted' issues is a great place to start.
 
 
+## Dual-Copy Model (read before editing skill content)
+
+This repository ships the same skill **twice**, targeting two different runtimes with two different contracts:
+
+| | Parent — Claude Code | Port — DevOps Agent |
+|---|---|---|
+| Root | `.claude/skills/eks-upgrade/` | `DevOpsAgent/` |
+| Assessment logic | `steering/*.md` | `references/*.md` |
+| OSS add-on registry | `data/oss_addon_registry.json` | `assets/oss_addon_registry.json` |
+| HTML converter | `tools/md_to_html.py` | *(none — report is rendered inline)* |
+| Skill definition | `SKILL.md` | `SKILL.md` *(intentionally different)* |
+
+**Every content fix must land in BOTH copies.** The two copies share most prose but diverge intentionally on directory names (`steering/` vs `references/`), the tool-vs-no-tool story, the CLI-form vs API-form of the same call, and Claude-Code-vs-DevOps-Agent framing. `SKILL.md` and the two READMEs are deliberately divergent (different runtime contracts) and are **not** reconciled.
+
+**File mapping** (fix these as pairs):
+
+- `steering/<name>.md` ↔ `references/<name>.md` — the 8 assessment files (`addon-compatibility`, `breaking-changes`, `deprecated-apis`, `node-readiness`, `report-generation`, `upgrade-insights`, `version-validation`, `workload-risks`)
+- `data/oss_addon_registry.json` ↔ `assets/oss_addon_registry.json`
+
+Do **not** blindly copy one file over the other — make the *same logical fix* in each, matching that copy's surrounding wording and paths.
+
+### Before you push
+
+Run the reconciliation gate:
+
+```bash
+misc/sync-copies.sh            # human-readable report of every divergence
+misc/sync-copies.sh --check    # exits non-zero if a fix landed in only one copy
+```
+
+`--check` fails when a divergent line matches neither a known-intentional pattern (`misc/sync-divergences.txt`) nor the accepted baseline (`misc/sync-baseline.txt`) — that is the signal a fix was mirrored into only one copy. Once you have made the fix in both copies and confirmed the remaining divergences are all intentional, re-freeze the baseline with `misc/sync-copies.sh --update-baseline` and commit the updated `misc/sync-baseline.txt` alongside your change.
+
 ## Code of Conduct
 This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct).
 For more information see the [Code of Conduct FAQ](https://aws.github.io/code-of-conduct-faq) or contact

@@ -1,0 +1,161 @@
+# sync-baseline.txt — accepted intentional divergences, frozen by
+# the sync-copies.sh --update-baseline mode. Each line is a verbatim
+# divergent line that is NOT matched by a systematic pattern in
+# sync-divergences.txt but has been reviewed as intentional. A NEW
+# divergence not present here is flagged as DRIFT by --check.
+# DO NOT hand-edit; regenerate after a reviewed reconciliation.
+     --output table
+     --query 'Subnets[].{SubnetId:SubnetId,AZ:AvailabilityZone,AvailableIPs:AvailableIpAddressCount,CIDR:CidrBlock}' \
+   Fetch (web fetch) `releases_url` and inspect the relevant release for "Kubernetes
+   Fetch (web fetch) the registry's `compatibility_url`. Look for a supported-versions
+   Read `${CLAUDE_SKILL_DIR}/data/oss_addon_registry.json`. If the add-on is listed,
+   Read `assets/oss_addon_registry.json`. If the add-on is listed,
+   Search with `remote_web_search` first to identify the authoritative source
+   Use `remote_web_search` with queries like:
+   Use `webFetch` on `releases_url` and inspect the relevant release for "Kubernetes
+   Use `webFetch` on the registry's `compatibility_url`. Look for a supported-versions
+   Use web search first to identify the authoritative source
+   Use web search with queries like:
+   `AvailableIpAddressCount`, and `CidrBlock`.
+   ```
+   ```bash
+   and record, for each subnet: `SubnetId`, `AvailabilityZone`,
+   aws ec2 describe-subnets --subnet-ids <subnet-id-1> <subnet-id-2> ... \
+  (N→N-1), via console/CLI/SDK (`aws eks update-cluster-version` with the N-1 version → update
+  (N→N-1), via the EKS console, API, or SDK (an update-cluster-version operation targeting the
+  **defaultVersion** (the `compatibilities[].defaultVersion` marker). If none is
+  --output text
+  --query 'addons[0].addonVersions[?compatibilities[0].defaultVersion==`true`].addonVersion' \
+  N-1 version produces a `VersionRollback` update type), gated by `ROLLBACK_READINESS` cluster
+  flagged, select the entry with the **highest semver**. Do NOT take the first
+  include `system:unauthenticated`
+  insights.
+  newest/default.
+  type `VersionRollback`), gated by `ROLLBACK_READINESS` cluster insights.
+# (kubectl added --show-managed-fields in 1.21 and omits managedFields unless that
+# Select the DEFAULT version explicitly — do NOT trust addonVersions[0].
+# WRONG — `v1` is a prefix of `v1beta3`, so `grep -v` strips both lines.
+# WRONG — kubectl 1.21+ hides managedFields from -o yaml / -o json by default
+# flag is set), so this scan returns false negatives.
+## Assessment Cannot Proceed
+## Assessment Halted — target version not yet available on EKS
+## Step 4: Compose the Report
+## Step 4: Write the Report
+## Step 6: Deliver the Report
+## Step 6: Write the Report File
+## Step 7: HTML Rendering (optional)
+## Step 7: Offer HTML Conversion
+### Filename Format
+### Report Title Format
+**Anti-pattern — do not pre-filter with naïve substring greps.**
+**Anti-pattern — do not pre-filter with naïve substring matching.**
+**Anti-pattern — do not rely on client-rendered output that hides managedFields.**
+**Anti-pattern — do not substitute `-o yaml` or `-o json`.**
+**How to scan:** List each resource kind across all namespaces via the Kubernetes
+- **Extract:** from `addons[0].addonVersions[]`, select the entry flagged as the
+- **Parameters:** `addonName: <addon>`, `kubernetesVersion: <target>`
+- AL2 nodes present, target >= 1.33 → FAIL (HIGH — no AL2 AMI available; migrate to AL2023). Scoring is deferred to `report-generation.md` (see Score Impact below): a cluster with a mix of AL2 and AL2023 nodes is not a hard score-cap override — the deduction is applied per that category, not treated as an automatic hard blocker here.
+- Check: List ClusterRoleBindings via the Kubernetes API and flag any whose `subjects[]`
+- Check: `kubectl get clusterrolebindings -o json | jq '.items[] | select(.subjects[]?.name=="system:unauthenticated")'`
+---
+... | grep -v "flowcontrol.apiserver.k8s.io/v1"
+1. A documentation search for "EKS Kubernetes <target> breaking changes"
+1. Call `get_eks_insights` with the cluster name
+1. Call `get_eks_insights` with the specific `insight_id`
+1. Search AWS docs: `search_documentation` for "EKS Kubernetes <target> breaking changes"
+1. Search AWS docs: a documentation search for "EKS Kubernetes <target> breaking changes"
+1. Search: `"Karpenter compatibility matrix Kubernetes <target-version>"` using `remote_web_search`
+1. Search: `"Karpenter compatibility matrix Kubernetes <target-version>"` using web search
+1. Use the EKS DescribeInsight API with the specific insight ID
+1. Use the EKS ListInsights API with the cluster name
+1. `search_documentation` for "EKS Kubernetes <target> breaking changes"
+2. A documentation search for "Kubernetes <target> removed APIs"
+2. Call the EC2 `DescribeSubnets` API with `SubnetIds: [<subnet-id-1>, <subnet-id-2>, ...]`
+2. Fetch the official page: `https://karpenter.sh/docs/upgrading/compatibility/` using `webFetch`
+2. Fetch the official page: `https://karpenter.sh/docs/upgrading/compatibility/` via web fetch
+2. If NOT in the table → search AWS docs (`search_documentation` for "EKS Kubernetes versions")
+2. If NOT in the table → search AWS docs (a documentation search for "EKS Kubernetes versions")
+2. Recommend: cordon the old AL2 nodes to mark them unschedulable so no new pods land on them
+2. Recommend: cordon the old AL2 nodes to stop new scheduling — e.g. `kubectl cordon <node-name>`
+2. Run:
+2. Search AWS docs: `search_documentation` for "Kubernetes <target> removed APIs"
+2. Search AWS docs: a documentation search for "Kubernetes <target> removed APIs"
+2. `search_documentation` for "Kubernetes <target> removed APIs"
+3. Fetch the K8s CHANGELOG for the target minor version
+3. Fetch the Kubernetes changelog: `read_documentation` on the K8s CHANGELOG for the target
+3. Fetch the Kubernetes changelog: the K8s CHANGELOG for the target
+3. Recommend: drain the workloads off the old AL2 nodes (ignoring DaemonSets, and clearing emptyDir data) so pods reschedule onto the AL2023 node group
+3. Recommend: drain workloads off the old nodes so pods reschedule onto AL2023 — e.g. `kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data`
+3. `read_documentation` on the K8s CHANGELOG for the target minor version
+4. A documentation search for "EKS <target> release notes"
+4. Check for EKS-specific changes: `search_documentation` for "EKS <target> release notes"
+4. Check for EKS-specific changes: a documentation search for "EKS <target> release notes"
+4. `search_documentation` for "EKS <target> release notes"
+>    data from AWS docs (`search_documentation` for "EKS Kubernetes versions") before proceeding.
+>    data from AWS docs (a documentation search for "EKS Kubernetes versions") before proceeding.
+> **Why not compare served vs stored apiVersion?** Reading an object's top-level
+> **Why not compare served vs stored apiVersion?** Reading the object's live
+> 4. If live lookup fails or live lookup is unavailable → use the table as fallback, but add
+> 4. If live lookup fails or the MCP server is unavailable → use the table as fallback, but add
+> Do NOT use served/stored apiVersion as a per-object signal.
+> `apiVersion` (e.g. `kubectl get flowschema <name> -o jsonpath='{.apiVersion}'`)
+> `apiVersion` field back from the API cannot distinguish a migrated object from an
+> apiVersion as a per-object signal.
+> can hide a manifest still applied as `v1beta3`. Do NOT use served/stored
+> cannot distinguish a migrated object from an unmigrated one: the API server
+> control planes a `v1` read-back can hide a manifest still applied as `v1beta3`.
+> serves every object at the version you request, so the read-back value reflects
+> the read-back value reflects the request, not the source manifest. On 1.30+
+> the request, not the source manifest. On 1.30+ control planes a `v1` read-back
+> unmigrated one: the API server serves every object at the version you request, so
+A single resource often has multiple `manager=apiVersion` entries on the
+API and read `metadata.managedFields[]` from every returned object. Each entry
+After writing the markdown report, ask:
+CLI fallback the top-level skill promises):
+Filter-then-decide pipelines drop the line entirely as soon as any benign
+For EVERY managed add-on, you MUST run this command and compare — never declare an
+For example, excluding every object whose managedFields text contains
+If no entry is flagged `defaultVersion`, pick the **highest semver** from
+If the EKS MCP tools are not available, call the same APIs via the AWS CLI:
+If the `get_eks_insights` MCP tool is not available, use the AWS CLI directly (this is the
+NEVER just take the first array element (`[0]`), which is not guaranteed to be latest.
+Output is `namespace/name<TAB>manager1=apiVersion1,manager2=apiVersion2,...`.
+Requires `eks:ListInsights` and `eks:DescribeInsight`. If Insights cannot be reached by either
+Requires `eks:ListInsights` and `eks:DescribeInsight`. If neither the MCP tool nor the CLI can
+The ONLY always-valid delivery branch is to render the full report Markdown INLINE in
+The `manager` portion identifies which writer used each apiVersion (e.g.,
+The raw Kubernetes API response includes `metadata.managedFields`. Client tools
+This gives the latest available build for the target Kubernetes version. Then apply
+This returns the latest available build for the target Kubernetes version. Then apply
+Use the `-o jsonpath` form above. It accesses `managedFields` directly and
+`-o yaml` / `-o json` by default — kubectl added `--show-managed-fields` in 1.21 and
+```
+```bash
+`addons[0].addonVersions[].addonVersion` instead (e.g. sort with `sort -V`) —
+`flowcontrol.apiserver.k8s.io/v1` also excludes `v1beta3` entries, because `v1`
+`kubectl get nodes` and node-group listings return empty. Category 3 (node readiness) is
+`managedFields` directly from the API object, not from rendered/summarized views.
+`manager=apiVersion` entries (e.g., a controller writing `v1` plus the user
+`manager=apiVersion` pair against the deprecation table in Step 3 instead.
+`manager=apiVersion` pair individually against the deprecation table in Step 3.
+add-on "compatible" or "up to date" from judgment alone:
+apiVersion matches. Walk the full output line by line and check each
+assessment, not a clean bill of health. This generalizes the `workload-risks.md`
+clean pass).
+compare — never declare an add-on "compatible" or "up to date" from judgment alone:
+contains a `manager` (the writer) and an `apiVersion` (the version that writer
+is a prefix of `v1beta3`. A single resource often has multiple
+is not affected by the default-hide behavior.
+kubectl get <kind> --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{"\t"}{range .metadata.managedFields[*]}{.manager}{"="}{.apiVersion}{","}{end}{"\n"}{end}'
+kubectl get <kind> -A -o yaml | grep apiVersion
+may strip it from rendered output (kubectl 1.21+ hides managedFields from
+node listings and node-group inventories return empty. Category 3 (node readiness) is
+not a clean pass).
+omits managedFields unless that flag is set), producing false negatives. Always read
+pair. The `manager` value identifies which writer used each apiVersion (e.g.,
+path, report Category 7 as UNKNOWN / not-scored — do NOT score it 0 (a denied read is not a
+reach Insights, report Category 7 as UNKNOWN / not-scored — do NOT score it 0 (a denied read is
+same line (e.g., a controller writing `v1` plus the user writing `v1beta3`).
+soon as any benign apiVersion matches. Walk every object and check each
+used). For each object, record `namespace/name` plus every `manager=apiVersion`
+writing `v1beta3`), and filter-then-decide logic drops the object entirely as

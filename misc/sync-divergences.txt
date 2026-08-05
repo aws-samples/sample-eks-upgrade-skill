@@ -1,0 +1,58 @@
+# sync-divergences.txt — known-intentional divergences between the two skill copies.
+#
+# One EXTENDED REGEX (ERE) per line. misc/sync-copies.sh treats any line that
+# differs between the parent copy and the DevOps Agent port as EXPECTED (not
+# drift) if the line matches ANY pattern here. Blank lines and #-comments are
+# ignored.
+#
+# These patterns capture the THREE documented axes of intentional divergence:
+#   1. Directory names   — steering/ (parent) vs references/ (port)
+#   2. Tool vs no-tool    — parent has tools/md_to_html.py + HTML output;
+#                           the port renders inline and runs no scripts
+#   3. Framing / vocab    — Claude Code file output vs DevOps Agent inline chat;
+#                           CLI form (describe-addon-versions) vs API form
+#                           (DescribeAddonVersions)
+#
+# Add a pattern here ONLY when you have confirmed a divergence is intentional.
+# If a real content fix landed in one copy, mirror it into the other instead of
+# whitelisting it.
+
+# --- Axis 1: directory-name divergence (path form and prose form) ---
+steering/
+references/
+steering file
+reference file
+
+# --- Axis 2: tool vs no-tool / HTML rendering ---
+md_to_html\.py
+conversion (script|tool)
+generate HTML
+HTML is at most an optional artifact
+optional artifact the human can generate
+HTML manually
+render the report Markdown INLINE
+renders the report inline
+delivered inline as Markdown
+inline Markdown
+script execution
+execute scripts
+external conversion
+
+# --- Axis 3: Claude Code file-output vs DevOps Agent inline framing ---
+DevOps Agent
+Write to the workspace root
+does NOT write files
+cannot write files
+save the report to disk
+saved filename
+report's (title|TITLE)
+report-title pattern
+chat response
+inline in the
+
+# --- Axis 3 (cont.): CLI form vs API form of the addon-versions lookup ---
+describe-addon-versions
+DescribeAddonVersions
+
+# --- Report title/filename pattern (port omits the .md file extension) ---
+EKS-Upgrade-Assessment-.*(\.md)?

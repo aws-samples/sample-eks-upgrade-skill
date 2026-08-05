@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+#
+# sync-copies.sh — dual-copy divergence reconciliation for the EKS upgrade skill.
+#
+# THE TWO-COPY MODEL
+# ------------------
+# This repo ships the same skill twice, with two different runtime contracts:
+#
+#   Parent (Claude Code)  .claude/skills/eks-upgrade/
+#       steering/*.md , data/oss_addon_registry.json , tools/md_to_html.py , SKILL.md
+#   Port   (DevOps Agent) DevOpsAgent/
+#       references/*.md , assets/oss_addon_registry.json , README.md , SKILL.md  (no tools/)
+#
+# The prose is shared, but the two copies diverge INTENTIONALLY on ~200 lines:
+# directory names (steering/ vs references/), the tool-vs-no-tool story, the
+# CLI-form vs API-form of the same call, and Claude-Code-vs-DevOps-Agent
+# framing. SKILL.md and the two READMEs are deliberately different (different
+# runtime contracts) and are NOT reconciled here.
+#
+# So this is NOT a copy/overwrite tool. It is a RECONCILIATION REPORTER. For
+# every mapped file pair it diffs the two copies and buckets each differing
+# line into:
+#     EXPECTED  — matches a known-intentional divergence pattern
+#                 (misc/sync-divergences.txt: the systematic path/framing axes), OR
+#                 is recorded in the accepted baseline (misc/sync-baseline.txt:
+#                 the remaining prose divergences frozen at a known-good commit).
+#     DRIFT     — differs and matches NEITHER. That is the danger case: a
+#                 content fix that landed in only ONE copy and must be mirrored
+#                 into the other (or, if truly intentional, added to the baseline).
+#
+# Why a baseline as well as patterns: the two copies reword whole sentences, not
+# just paths, so a line-level regex whitelist alone false-fires on legitimate
+# rewording. The baseline freezes the current known-good divergence set so the
+# gate stays quiet until something genuinely new appears.
+#
+# USAGE
+#     misc/sync-copies.sh                 # human-readable report; always exits 0
+#     misc/sync-copies.sh --check         # CI/pre-push gate; exit 1 on any DRIFT
+#     misc/sync-copies.sh --update-baseline
+#                                         # re-freeze the accepted divergence set
+#                                         # (run only after confirming every
+#                                         #  current divergence is intentional)
+#
+# Portable: POSIX diff/grep/sort, bash 3.2-safe (no mapfile / assoc arrays /
+# GNU-only flags). Whitelist patterns are extended regexes (ERE), one per line.
+
+set -u
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(dirname "$SCRIPT_DIR")
+WHITELIST="$SCRIPT_DIR/sync-divergences.txt"
+BASELINE="$SCRIPT_DIR/sync-baseline.txt"
+
+PARENT_MD_DIR=".claude/skills/eks-upgrade/steering"
+PORT_MD_DIR="DevOpsAgent/references"
+PARENT_REGISTRY=".claude/skills/eks-upgrade/data/oss_addon_registry.json"
+PORT_REGISTRY="DevOpsAgent/assets/oss_addon_registry.json"
+
+# The 8 mapped .md files (basename shared across steering/ and references/).
+MD_FILES="addon-compatibility breaking-changes deprecated-apis node-readiness report-generation upgrade-insights version-validation workload-risks"
+
+MODE="report"
+case "${1:-}" in
+  --check)           MODE="check" ;;
+  --update-baseline) MODE="update" ;;
+  -h|--help)
+    printf 'usage: %s [--check | --update-baseline]\n' "$(basename "$0")"
+    printf '  (no args)          print a reconciliation report; always exits 0\n'
+    printf '  --check            exit non-zero if any non-whitelisted DRIFT line is found\n'
+    printf '  --update-baseline  re-freeze the accepted intentional-divergence set\n'
+    exit 0
+    ;;
+  "") ;;
+  *)
+    printf 'error: unknown argument: %s (try --help)\n' "$1" >&2
+    exit 2
+    ;;
+esac
+
+# Clean the pattern file down to real ERE patterns (drop comments/blank lines).
+PATTERN_FILE=$(mktemp "${TMPDIR:-/tmp}/sync-wl.XXXXXX")
+NEW_BASELINE=$(mktemp "${TMPDIR:-/tmp}/sync-nb.XXXXXX")
+trap 'rm -f "$PATTERN_FILE" "$NEW_BASELINE"' EXIT
+
+if [ -f "$WHITELIST" ]; then
+  grep -E -v '^[[:space:]]*(#|$)' "$WHITELIST" > "$PATTERN_FILE" || true
+fi
+if [ ! -s "$PATTERN_FILE" ] && [ "$MODE" != "update" ]; then
+  printf 'warning: no whitelist patterns loaded from %s\n' "$WHITELIST" >&2
+fi
+
+total_drift=0
+total_expected=0
+total_baseline=0
+pairs_diverged=0
+
+# classify_pair <label> <fileA> <fileB>
+classify_pair() {
+  label="$1"; file_a="$2"; file_b="$3"
+
+  if [ ! -f "$file_a" ]; then printf '  MISSING: %s\n' "$file_a" >&2; return; fi
+  if [ ! -f "$file_b" ]; then printf '  MISSING: %s\n' "$file_b" >&2; return; fi
+
+  # Changed content lines from both sides, diff prefix stripped. Plain POSIX diff.
+  changed=$(diff "$file_a" "$file_b" 2>/dev/null | grep -E '^[<>] ' | cut -c3-)
+  [ -z "$changed" ] && return
+  pairs_diverged=$((pairs_diverged + 1))
+
+  # 1) split by pattern whitelist
+  if [ -s "$PATTERN_FILE" ]; then
+    expected_lines=$(printf '%s\n' "$changed" | grep -E -f "$PATTERN_FILE" || true)
+    remainder=$(printf '%s\n' "$changed" | grep -E -v -f "$PATTERN_FILE" || true)
+  else
+    expected_lines=""; remainder="$changed"
+  fi
+
+  # 2) split the remainder by the accepted baseline
+  if [ -s "$BASELINE" ]; then
+    baselined_lines=$(printf '%s\n' "$remainder" | grep -F -x -f "$BASELINE" || true)
+    drift_lines=$(printf '%s\n' "$remainder" | grep -F -x -v -f "$BASELINE" || true)
+  else
+    baselined_lines=""; drift_lines="$remainder"
+  fi
+
+  # In update mode, the "remainder" (everything not matched by a systematic
+  # pattern) becomes the new frozen baseline.
+  if [ "$MODE" = "update" ]; then
+    printf '%s\n' "$remainder" | grep -v '^$' >> "$NEW_BASELINE"
+  fi
+
+  n_expected=0; n_baseline=0; n_drift=0
+  [ -n "$expected_lines" ]  && n_expected=$(printf '%s\n' "$expected_lines"  | grep -c .)
+  [ -n "$baselined_lines" ] && n_baseline=$(printf '%s\n' "$baselined_lines" | grep -c .)
+  [ -n "$drift_lines" ]     && n_drift=$(printf '%s\n' "$drift_lines"     | grep -c .)
+
+  total_expected=$((total_expected + n_expected))
+  total_baseline=$((total_baseline + n_baseline))
+  total_drift=$((total_drift + n_drift))
+
+  printf '\n== %s\n' "$label"
+  printf '   %s\n   %s\n' "$file_a" "$file_b"
+  printf '   expected (pattern): %s | accepted (baseline): %s | DRIFT: %s\n' \
+    "$n_expected" "$n_baseline" "$n_drift"
+
+  if [ "$n_drift" -gt 0 ]; then
+    printf '   --- these lines differ, match NO pattern, and are NOT in the baseline ---\n'
+    printf '   --- is this a fix that landed in only one copy? mirror it, or re-baseline ---\n'
+    printf '%s\n' "$drift_lines" | while IFS= read -r line; do
+      [ -n "$line" ] && printf '   DRIFT | %s\n' "$line"
+    done
+  fi
+}
+
+printf 'Dual-copy reconciliation report (parent Claude Code  <->  DevOps Agent port)\n'
+printf 'repo root: %s\n' "$REPO_ROOT"
+
+for name in $MD_FILES; do
+  classify_pair "$name.md" \
+    "$REPO_ROOT/$PARENT_MD_DIR/$name.md" \
+    "$REPO_ROOT/$PORT_MD_DIR/$name.md"
+done
+classify_pair "oss_addon_registry.json" \
+  "$REPO_ROOT/$PARENT_REGISTRY" "$REPO_ROOT/$PORT_REGISTRY"
+
+if [ "$MODE" = "update" ]; then
+  # Freeze the accepted divergence set: unique, sorted, comment header.
+  {
+    printf '# sync-baseline.txt — accepted intentional divergences, frozen by\n'
+    printf '# the sync-copies.sh --update-baseline mode. Each line is a verbatim\n'
+    printf '# divergent line that is NOT matched by a systematic pattern in\n'
+    printf '# sync-divergences.txt but has been reviewed as intentional. A NEW\n'
+    printf '# divergence not present here is flagged as DRIFT by --check.\n'
+    printf '# DO NOT hand-edit; regenerate after a reviewed reconciliation.\n'
+    sort -u "$NEW_BASELINE" | grep -v '^$'
+  } > "$BASELINE"
+  count=$(sort -u "$NEW_BASELINE" | grep -c .)
+  printf '\n----------------------------------------------------------------\n'
+  printf 'Baseline updated: %s accepted divergence line(s) written to %s\n' "$count" "$BASELINE"
+  exit 0
+fi
+
+printf '\n----------------------------------------------------------------\n'
+printf 'Summary: %s pairs diverge | %s pattern-expected | %s baseline-accepted | %s DRIFT\n' \
+  "$pairs_diverged" "$total_expected" "$total_baseline" "$total_drift"
+
+if [ "$MODE" = "check" ]; then
+  if [ "$total_drift" -gt 0 ]; then
+    printf 'RESULT: FAIL — %s non-whitelisted divergence line(s). A content fix may have\n' "$total_drift"
+    printf '        landed in only one copy. Mirror it into the other copy; or, if the\n'
+    printf '        divergence is genuinely intentional, add a pattern to\n'
+    printf '        misc/sync-divergences.txt or run --update-baseline after review.\n'
+    exit 1
+  fi
+  printf 'RESULT: PASS — every divergence is pattern-whitelisted or baseline-accepted.\n'
+  exit 0
+fi
+
+printf 'Run with --check to fail CI on non-whitelisted drift.\n'
+exit 0
