@@ -43,8 +43,9 @@ upgraded to 1.36. It should be reported as INFO, and the score should NOT be cap
 - Nodes currently report **containerd 1.7.x** (older AL2023 AMI release)
 - Node type: EKS managed node group (NOT self-managed, NOT custom AMI)
 - Subnet IPs: subnet-aaa (40 available), subnet-bbb (38 available)
-- containerd 1.x on a MANAGED node group with target 1.36 → INFO only. Upgrading the node
-  group to 1.36 replaces the AMI and pulls containerd 2.0+ automatically. NOT a hard blocker.
+- containerd 1.x on a MANAGED node group with target 1.36 → warning-tier (INFO-severity)
+  finding, +2 under Category 3 (NOT a hard blocker, does NOT cap the score). Upgrading the
+  node group to 1.36 replaces the AMI and pulls containerd 2.0+ automatically.
 
 ### Workload Risks (Step 6)
 - 3 deployments in non-system namespaces:
@@ -61,16 +62,9 @@ upgraded to 1.36. It should be reported as INFO, and the score should NOT be cap
 - No AL2 nodes
 - No behavioral changes
 
-## Expected Outcome (for verification)
-
-- containerd 1.x on managed node = 2 pts (warning tier), NOT a hard blocker
-- No other deductions
-- Arithmetic: 100 - 2 = 98%
-- No hard blocker override (managed node is exempt)
-- Final: 98% — READY
-- The report should explicitly note the containerd runtime jump happens automatically during
-  node group upgrade.
-
 ## Instructions
+
+The report should explicitly note the containerd runtime jump happens automatically during
+node group upgrade (managed node group is exempt from the containerd-1.x hard blocker).
 
 Generate the full report to file: `evals/outputs/07-k8s-136-managed-containerd-report.md`

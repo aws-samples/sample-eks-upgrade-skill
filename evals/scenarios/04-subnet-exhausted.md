@@ -38,9 +38,11 @@ Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring 
 - All nodes on containerd 2.x
 - No self-managed nodes
 - Subnet IPs: subnet-aaa (3 available), subnet-bbb (12 available)
-  - subnet-aaa has < 5 IPs — WARNING (single low subnet among otherwise-healthy subnets;
-    collectively 3+12=15 free IPs is sufficient for control-plane ENI placement, so this is
-    NOT a hard blocker)
+  - subnet-aaa has 3 available IPs — within the low-IP warning band (<= 15) — WARNING
+  - subnet-bbb has 12 available IPs — within the low-IP warning band (<= 15) — WARNING
+  - Both subnets are individually in the 5-15 low-IP warning band (subnet-aaa is even below 5),
+    but collectively 3+12=15 free IPs is >= 5 and sufficient for control-plane ENI placement,
+    so this is NOT a hard blocker — two subnet warnings, no blocker override.
 
 ### Workload Risks (Step 6)
 - 5 deployments in non-system namespaces:

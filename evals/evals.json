@@ -1,15 +1,16 @@
 {
   "skill_name": "eks-upgrade-check",
   "description": "Scoring and report generation evals. Each prompt feeds pre-determined findings and expects specific scoring behavior. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write",
+  "output_path_convention": "Test-harness exception: scenarios intentionally instruct the report to be written to evals/outputs/NN-<name>-report.md for deterministic collection by the eval harness. This overrides report-generation.md, which mandates EKS-Upgrade-Assessment-<cluster>-<date>.md at the workspace root for real (non-eval) runs. evals/outputs/ should be added to .gitignore (flagged for the .gitignore maintainer).",
   "evals": [
     {
       "id": 1,
       "name": "clean-cluster-ready",
       "prompt_file": "scenarios/01-clean-cluster.md",
-      "expected_output": "Score 90-100%, rating READY, no blockers, all required report sections present",
+      "expected_output": "Score 100%, rating READY, no blockers, all required report sections present",
       "assertions": [
-        {"name": "score_90_plus", "check": "score >= 90"},
-        {"name": "rating_ready", "check": "report contains 'READY'"},
+        {"name": "score_is_100", "check": "score == 100"},
+        {"name": "rating_ready", "check": "report rating matches regex '(?<!NOT )READY' (anchored: 'NOT READY' must NOT satisfy this)"},
         {"name": "no_blockers", "check": "Blockers section says 'No blockers identified'"},
         {"name": "all_sections_present", "check": "report contains all required headings"}
       ]
@@ -18,22 +19,22 @@
       "id": 2,
       "name": "hard-blocker-karpenter",
       "prompt_file": "scenarios/02-karpenter-blocker.md",
-      "expected_output": "Score ≤59%, rating NOT READY, Karpenter flagged as blocker",
+      "expected_output": "Score 59% (hard-blocker cap), rating NOT READY, Karpenter flagged as blocker. Upgrade Plan orders control plane first, then data plane, then add-ons; the conditional Karpenter step is upgrade-first (Karpenter is the documented exception, upgraded before the control plane).",
       "assertions": [
-        {"name": "score_capped_59", "check": "score <= 59"},
-        {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
+        {"name": "score_capped_59", "check": "score == 59"},
+        {"name": "rating_not_ready", "check": "Blockers present, so rating is 'NOT READY'"},
         {"name": "karpenter_in_blockers", "check": "Blockers section mentions Karpenter"},
         {"name": "karpenter_version_detected", "check": "report contains '0.37'"},
-        {"name": "upgrade_order_correct", "check": "Upgrade Plan mentions Karpenter before control plane"}
+        {"name": "upgrade_order_correct", "check": "Upgrade Plan is control-plane-first (control plane before data plane and add-ons), AND the conditional Karpenter step runs upgrade-first (Karpenter upgraded before the control plane, as the documented exception)"}
       ]
     },
     {
       "id": 3,
       "name": "hard-blocker-degraded-addon",
       "prompt_file": "scenarios/03-degraded-addon.md",
-      "expected_output": "Score ≤59%, rating NOT READY, EBS CSI flagged as blocker",
+      "expected_output": "Score 59% (hard-blocker cap), rating NOT READY, EBS CSI flagged as blocker",
       "assertions": [
-        {"name": "score_capped_59", "check": "score <= 59"},
+        {"name": "score_capped_59", "check": "score == 59"},
         {"name": "rating_not_ready", "check": "report contains 'NOT READY'"},
         {"name": "ebs_csi_in_blockers", "check": "Blockers section mentions ebs-csi or EBS CSI"},
         {"name": "degraded_mentioned", "check": "report contains 'DEGRADED'"}
@@ -83,7 +84,7 @@
       "expected_output": "Score 98% READY. Managed containerd 1.x on target 1.36 is INFO only, NOT a hard blocker.",
       "assertions": [
         {"name": "score_is_98", "check": "score == 98"},
-        {"name": "rating_ready", "check": "report contains 'READY'"},
+        {"name": "rating_ready", "check": "report rating matches regex '(?<!NOT )READY' (anchored: 'NOT READY' must NOT satisfy this)"},
         {"name": "no_hard_blocker_override", "check": "score > 59"},
         {"name": "containerd_not_blocker", "check": "containerd noted as INFO/auto-handled, not in Blockers"}
       ]
