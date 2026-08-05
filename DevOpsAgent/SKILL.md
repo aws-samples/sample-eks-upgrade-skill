@@ -4,7 +4,8 @@ description: Assess EKS cluster upgrade readiness by running automated checks ac
   8 areas (version validation, breaking changes, deprecated APIs, add-on compatibility,
   node readiness, workload risks, AWS Upgrade Insights, upgrade plan), calculate a
   readiness score (0-100%), and generate a detailed report with remediation steps and
-  pre-filled AWS CLI commands. Use this skill when investigating EKS upgrade safety,
+  pre-filled AWS CLI commands. Assessment-only - all checks are strictly read-only and
+  never modify the cluster. Use this skill when investigating EKS upgrade safety,
   or, in the context of a version upgrade, Kubernetes version skew, deprecated API usage,
   addon compatibility, or Karpenter version; also node upgrade readiness or control plane
   upgrade planning.
@@ -88,14 +89,19 @@ exactly this and end the run (produce no readiness score):
 
 **Action 1 — Discover clusters**
 
-Use EKS ListClusters to discover available clusters, then apply this decision table:
+Use EKS ListClusters to discover available clusters, then apply this decision table.
+
+> **Region caveat.** EKS ListClusters is **region-scoped** and returns **names only, not regions**.
+> A zero-cluster result means "none in this region," NOT "none in the account" — confirm the intended
+> region before treating zero clusters as terminal. The "name + region" shown below pairs each returned
+> name with the region actually queried, not a region returned by the API.
 
 | Condition | Action |
 |-----------|--------|
 | User named a cluster in the request | Confirm it exists in the list, then proceed. If it does not exist → HARD STOP. |
 | Exactly one cluster found, none named | Proceed. State which cluster is being assessed. |
 | More than one cluster found, none named | **HARD STOP.** List all clusters (name + region). Do NOT auto-select by first/newest/any heuristic. |
-| Zero clusters found | **HARD STOP.** Report that no clusters were found in the region/account. |
+| Zero clusters found | **HARD STOP.** Report that no clusters were found **in the queried region** (state the region), and note that other regions were not checked. |
 
 **Action 2 — Describe the selected cluster**
 
@@ -109,11 +115,22 @@ If status is NOT `ACTIVE` → **HARD STOP**:
 - **CREATING/UPDATING/DELETING** — cluster is in transition; the EKS API will reject an upgrade.
 - **FAILED** — cluster must be recovered before an upgrade can be attempted.
 
-**Action 3 — Validate permissions**
+**Action 3 — Validate permissions (AWS + Kubernetes)**
 
-Verify access to: ListNodegroups, ListAddons, ListInsights. If any required permission
-is missing → **HARD STOP** and report exactly which IAM action is denied. Do NOT proceed
-with a partial assessment.
+**3a — AWS API preflight.** Verify access to: ListNodegroups, ListAddons, DescribeAddonVersions
+(add-on compatibility — `references/addon-compatibility.md` marks this a MUST-run read), ListInsights,
+and EC2 DescribeSubnets (node-readiness subnet-IP hard-blocker input). DescribeCluster / DescribeNodegroup
+/ DescribeAddon / DescribeInsight are exercised implicitly by the assessment steps.
+
+**3b — Kubernetes RBAC preflight.** The high-weight categories read Kubernetes objects, not just AWS
+APIs. Confirm cluster read access to: Deployments/DaemonSets/StatefulSets (workloads + deprecated-apis),
+Validating/MutatingWebhookConfigurations (breaking-changes), HorizontalPodAutoscalers (deprecated-apis),
+and `nodepools.karpenter.sh` (node-readiness + add-on compatibility) via a `can-i`-style list check.
+
+If any required AWS permission or Kubernetes read is denied → **HARD STOP** and report exactly which
+IAM action or RBAC verb/resource is missing. A denied read is reported UNKNOWN / not-scored (NOT a
+clean 0-deduction pass), per `references/report-generation.md`. Do NOT proceed with a partial
+assessment; the guarantee this preflight gives extends only to the reads it actually probes.
 
 **Action 4 — Determine target version**
 
