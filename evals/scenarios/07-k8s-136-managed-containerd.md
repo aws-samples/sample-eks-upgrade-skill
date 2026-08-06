@@ -3,9 +3,8 @@ I'm testing the EKS upgrade skill scoring logic with mock data. Do NOT run any a
 Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring algorithm and report template, then generate the report.
 
 This scenario is the CONTRAST to scenario 06: same containerd 1.x runtime, same target 1.36,
-but the nodes are EKS-managed instead of self-managed. The expected outcome is that containerd
-1.x here is NOT a hard blocker — managed node groups pull containerd 2.0+ automatically when
-upgraded to 1.36. It should be reported as INFO, and the score should NOT be capped at 59%.
+but the nodes are EKS-managed instead of self-managed. Managed node groups pull containerd
+2.0+ automatically when the node group is upgraded to 1.36.
 
 ## Cluster Metadata
 
@@ -43,9 +42,9 @@ upgraded to 1.36. It should be reported as INFO, and the score should NOT be cap
 - Nodes currently report **containerd 1.7.x** (older AL2023 AMI release)
 - Node type: EKS managed node group (NOT self-managed, NOT custom AMI)
 - Subnet IPs: subnet-aaa (40 available), subnet-bbb (38 available)
-- containerd 1.x on a MANAGED node group with target 1.36 → warning-tier (INFO-severity)
-  finding, +2 under Category 3 (NOT a hard blocker, does NOT cap the score). Upgrading the
-  node group to 1.36 replaces the AMI and pulls containerd 2.0+ automatically.
+- Nodes run containerd 1.7.x; the node group is an EKS managed node group (not self-managed,
+  not custom AMI). Upgrading the node group to 1.36 replaces the AMI and pulls containerd 2.0+
+  automatically.
 
 ### Workload Risks (Step 6)
 - 3 deployments in non-system namespaces:
@@ -63,8 +62,5 @@ upgraded to 1.36. It should be reported as INFO, and the score should NOT be cap
 - No behavioral changes
 
 ## Instructions
-
-The report should explicitly note the containerd runtime jump happens automatically during
-node group upgrade (managed node group is exempt from the containerd-1.x hard blocker).
 
 Generate the full report to file: `evals/outputs/07-k8s-136-managed-containerd-report.md`

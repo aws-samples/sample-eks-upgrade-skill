@@ -32,7 +32,7 @@ Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring 
     `manager=kubectl-client-side-apply, apiVersion=flowcontrol.apiserver.k8s.io/v1beta3`
   - `prioritylevelconfigurations`: `custom-plc` has `managedFields` entry
     `manager=helm, apiVersion=flowcontrol.apiserver.k8s.io/v1beta3`
-  - (These APIs are REMOVED in target 1.32, not merely deprecated → hard blocker, not a LOW deduction.)
+  - (These APIs are REMOVED in target 1.32, not merely deprecated.)
 
 ### Add-on Compatibility (Step 4)
 - vpc-cni v1.19.0: ACTIVE, COMPATIBLE

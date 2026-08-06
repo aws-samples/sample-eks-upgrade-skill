@@ -1,7 +1,7 @@
 {
   "skill_name": "eks-upgrade-check",
   "description": "Scoring and report generation evals. Each prompt feeds pre-determined findings and expects specific scoring behavior. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write",
-  "output_path_convention": "Test-harness exception: scenarios intentionally instruct the report to be written to evals/outputs/NN-<name>-report.md for deterministic collection by the eval harness. This overrides report-generation.md, which mandates EKS-Upgrade-Assessment-<cluster>-<date>.md at the workspace root for real (non-eval) runs. evals/outputs/ should be added to .gitignore (flagged for the .gitignore maintainer).",
+  "output_path_convention": "Test-harness exception: scenarios intentionally instruct the report to be written to evals/outputs/NN-<name>-report.md for deterministic collection by the eval harness. This overrides report-generation.md, which mandates EKS-Upgrade-Assessment-<cluster>-<date>.md at the workspace root for real (non-eval) runs. evals/outputs/ is gitignored.",
   "evals": [
     {
       "id": 1,
@@ -22,7 +22,7 @@
       "expected_output": "Score 59% (hard-blocker cap), rating NOT READY, Karpenter flagged as blocker. Upgrade Plan orders control plane first, then data plane, then add-ons; the conditional Karpenter step is upgrade-first (Karpenter is the documented exception, upgraded before the control plane).",
       "assertions": [
         {"name": "score_capped_59", "check": "score == 59"},
-        {"name": "rating_not_ready", "check": "Blockers present, so rating is 'NOT READY'"},
+        {"name": "rating_not_ready", "check": "report rating contains 'NOT READY'"},
         {"name": "karpenter_in_blockers", "check": "Blockers section mentions Karpenter"},
         {"name": "karpenter_version_detected", "check": "report contains '0.37'"},
         {"name": "upgrade_order_correct", "check": "Upgrade Plan is control-plane-first (control plane before data plane and add-ons), AND the conditional Karpenter step runs upgrade-first (Karpenter upgraded before the control plane, as the documented exception)"}
@@ -44,12 +44,12 @@
       "id": 4,
       "name": "subnet-single-low-warning",
       "prompt_file": "scenarios/04-subnet-exhausted.md",
-      "expected_output": "Score 87% GOOD, no hard blocker override; a single low subnet among healthy subnets is a warning (collective IPs 3+12=15 ≥5), not a blocker.",
+      "expected_output": "Score 87% GOOD, no hard blocker override; BOTH low subnets (aaa=3, bbb=12) are individually in the <=15 warning band (+2 each) but collectively 3+12=15 IPs is >=5, so no blocker override.",
       "assertions": [
         {"name": "score_is_87", "check": "score == 87"},
         {"name": "rating_good", "check": "report contains 'GOOD'"},
         {"name": "no_hard_blocker_override", "check": "score > 59"},
-        {"name": "subnet_warning_not_blocker", "check": "low subnet noted as a warning, not in Blockers as a hard blocker"}
+        {"name": "both_subnet_warnings_not_blocker", "check": "both low subnets (aaa and bbb) noted as warnings, neither in Blockers as a hard blocker (collective IPs >=5)"}
       ]
     },
     {
@@ -87,6 +87,19 @@
         {"name": "rating_ready", "check": "report rating matches regex '(?<!NOT )READY' (anchored: 'NOT READY' must NOT satisfy this)"},
         {"name": "no_hard_blocker_override", "check": "score > 59"},
         {"name": "containerd_not_blocker", "check": "containerd noted as INFO/auto-handled, not in Blockers"}
+      ]
+    },
+    {
+      "id": 8,
+      "name": "denied-read-category-unassessed",
+      "prompt_file": "scenarios/08-denied-read-unassessed.md",
+      "expected_output": "One category (Deprecated APIs) had its backing read denied (403), so it is reported UNKNOWN / not-scored: listed in ## Unassessed, excluded from the score sum (NOT scored 0), and the headline carries the '(partial — N categories unassessed)' marker and is capped below READY. Assessed remainder scores 98 (sole deduction: subnet-aaa low-IP warning +2 under Node Readiness), but the partial marker prevents a READY rating.",
+      "assertions": [
+        {"name": "deprecated_apis_unassessed", "check": "## Unassessed section lists the Deprecated APIs category with the denied/403 read as the reason"},
+        {"name": "unassessed_excluded_from_sum", "check": "Deprecated APIs contributes NO row to the Master Finding List Pts sum and NO deduction — it is excluded, not scored 0"},
+        {"name": "headline_partial_marker", "check": "headline band contains a '(partial' unassessed marker, e.g. '(partial — 1 category unassessed)'"},
+        {"name": "capped_below_ready", "check": "rating is NOT 'READY' despite the assessed-remainder arithmetic (partial assessment caps below READY)"},
+        {"name": "assessed_remainder_98", "check": "assessed-remainder arithmetic score == 98 (100 - 2 for the single low-IP subnet warning)"}
       ]
     }
   ]
