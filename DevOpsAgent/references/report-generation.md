@@ -22,6 +22,10 @@ partial), that category is reported **UNKNOWN / not-scored** — it does NOT con
 0-point "clean" deduction, and it MUST be listed in the mandatory `## Unassessed` report
 section (Step 4). A category may be scored ONLY when its backing reads actually succeeded.
 
+**PRECEDENCE & GRANULARITY:** A denied read marks UNKNOWN only the checks that need that
+read, not the whole category; a mandatory finding whose gate-probe read was denied is listed
+in `## Unassessed`, never silently dropped.
+
 **VERDICT IMPACT:** A cluster with any UNKNOWN / not-scored category MUST NOT be presented
 as READY on the strength of the categories that did run. The headline rating carries the
 caveat and the `## Unassessed` section makes the un-run checks explicit, so a READY verdict
@@ -468,8 +472,10 @@ after Evidence, the report is invalid — reorder before returning.
    MUST appear as a row in the Master Finding List when its target condition is met.
    When the upgrade crosses INTO the restriction (current <= 1.31 AND target >= 1.32) this
    includes "Anonymous Auth Restricted" (Category 1, 4 pts — subject to the CRB gate in
-   breaking-changes.md: run its ClusterRoleBinding probe for `system:unauthenticated` on a
-   non-health endpoint to confirm real impact before writing the finding). A cluster already
+   breaking-changes.md: the anonymous-auth finding is written only if the ClusterRoleBinding
+   listing shows a `system:unauthenticated` binding beyond the default health-endpoint access
+   (`/healthz`, `/livez`, `/readyz`). If the only bindings are those health-endpoint defaults,
+   do NOT write the finding). A cluster already
    on 1.32+ is past this crossing — do NOT add it.
    If an always-flag item is absent from the table, the assessment is incomplete —
    add it before scoring.
@@ -529,27 +535,40 @@ action items; it doesn't precede them.
 
 > Account ID hygiene: the account ID is sensitive. If this report will be shared outside the account, mask or omit the `[account-id]` value before sharing.
 
+<!-- CONDITIONAL Scope caveat — include this blockquote ONLY when `## Unassessed` is
+non-empty (i.e. at least one category was reported UNKNOWN / not-scored). When every
+category was assessed, OMIT it entirely — do not print scope boilerplate on a clean,
+fully-assessed report. -->
 > Scope: this assessment reflects only the checks that could be run against this cluster with the access available. A READY/GOOD rating means no blockers were detected **in the areas assessed** — it is not a guarantee of overall upgrade safety. See `## Unassessed` for any category whose backing read was denied or partial.
 
 ---
 
-## Readiness Score: [XX]% — [READY/GOOD/FAIR/RISKY/NOT READY]
+<!-- HEADLINE VERDICT BAND (R2-M1): when `## Unassessed` is non-empty, (a) append
+` (partial — N categories unassessed)` to the verdict band below, where N is the count of
+`## Unassessed` rows, AND (b) cap the verdict level below READY (the highest a partial
+assessment may print is GOOD — a partial assessment can NEVER print an uncaveated READY).
+When every category was assessed, print the band with no suffix and no cap. -->
+## Readiness Score: [XX]% — [READY/GOOD/FAIR/RISKY/NOT READY][ (partial — N categories unassessed) — only when `## Unassessed` is non-empty]
 
 [2-3 sentence summary. What's the bottom line? Can they upgrade safely?]
 
 ### Score Breakdown
 
+<!-- Status glyph legend: ✅ assessed-clean · ⚠️ assessed-with-findings · ❌ assessed-blocker
+· ❔ UNKNOWN (backing read denied/errored/partial — not scored, see `## Unassessed`) · N/A
+not applicable. UNKNOWN categories contribute NO deduction to the Total (Step 1.0). -->
+
 | Category | Status | Deduction | Details |
 |----------|--------|-----------|---------|
-| Breaking Changes | ✅/⚠️/❌ | -X pts | [summary] |
-| Deprecated APIs | ✅/⚠️/❌ | -X pts | [summary] |
-| Node Readiness | ✅/⚠️/❌ | -X pts | [summary] |
-| Add-on Compatibility | ✅/⚠️/❌ | -X pts | [summary] |
-| Karpenter | ✅/⚠️/❌/N/A | -X pts | [summary] |
-| Workload Risks | ✅/⚠️/❌ | -X pts | [summary] |
-| AWS Upgrade Insights | ✅/⚠️/❌ | -X pts | [summary] |
-| AL2 / AMI | ✅/⚠️/❌ | -X pts | [summary] |
-| Behavioral Changes | ✅/⚠️/❌ | -X pts | [summary] |
+| Breaking Changes | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| Deprecated APIs | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| Node Readiness | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| Add-on Compatibility | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| Karpenter | ✅/⚠️/❌/❔/N/A | -X pts | [summary] |
+| Workload Risks | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| AWS Upgrade Insights | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| AL2 / AMI | ✅/⚠️/❌/❔ | -X pts | [summary] |
+| Behavioral Changes | ✅/⚠️/❌/❔ | -X pts | [summary] |
 | Unsupported Version | ✅/❌/N/A | -X pts | [summary — omit row if version is supported] |
 | **Total** | | **-X pts** | **Score: XX%** |
 
@@ -696,18 +715,26 @@ only Auto Mode nodes auto-roll-back (managed / self-managed / hybrid node groups
 operator's job); rolling back to a version in extended support requires setting the cluster upgrade
 policy to `EXTENDED` first. Advisory only — it does not change the readiness score.
 
-> **Ordering follows AWS authority** (EKS Best Practices "Cluster Upgrades" and the
-> `update-cluster-version` flow): upgrade the **control plane first**, then the **data plane
-> (nodes)**, then **add-ons**. The single documented exception is Karpenter — see the
-> conditional Step 0 below.
+> **Ordering follows AWS authority** — the EKS User Guide *Update existing cluster to new
+> Kubernetes version* **Summary** (steps 2 → 3 → 5): upgrade the **control plane first**
+> (step 2), then the **data plane (nodes)** (step 3), then the **EKS-provided add-ons**
+> (step 5). Karpenter is not an ordering exception — it is a **prerequisite**: ensure
+> Karpenter is on a version supporting [TARGET] before you begin (per the karpenter.sh
+> compatibility matrix). See the conditional Step 0 below.
 
-### Step 0 (CONDITIONAL — Karpenter only): Upgrade Karpenter FIRST, before the control plane
+### Step 0 (CONDITIONAL — Karpenter only): Prerequisite — bring Karpenter to a [TARGET]-compatible version first
 ```bash
-# ONLY if Karpenter is installed AND its running version is not compatible with [TARGET].
-# Karpenter is the documented exception to control-plane-first ordering: it must understand
-# the target version's node/API shapes before the control plane moves, or it may fail to
-# provision compatible nodes during the roll. Upgrade Karpenter to a [TARGET]-compatible
-# version here, THEN proceed to Step 1. If Karpenter is not installed, skip this step.
+# ONLY if Karpenter is installed AND its running version does not support [TARGET].
+# This is a COMPATIBILITY PREREQUISITE, not an ordering rule: Karpenter must be on a
+# version that supports [TARGET] before the upgrade so it can provision compatible nodes
+# during the roll. Confirm the required version in the karpenter.sh compatibility matrix
+# (https://karpenter.sh/docs/upgrading/compatibility/), then upgrade in two steps —
+# CRDs first, then the controller. If Karpenter is not installed, skip this step.
+#
+# Step 0a: update the Karpenter CRDs (required for cross-major upgrades — the controller
+# chart does NOT manage CRDs; a bare --reuse-values controller upgrade leaves stale CRDs).
+helm upgrade --install karpenter-crd oci://public.ecr.aws/karpenter/karpenter-crd --version [KARPENTER_TARGET_VERSION] --namespace [KARPENTER_NAMESPACE]
+# Step 0b: upgrade the Karpenter controller to the same [TARGET]-compatible version.
 helm upgrade karpenter oci://public.ecr.aws/karpenter/karpenter --version [KARPENTER_TARGET_VERSION] --namespace [KARPENTER_NAMESPACE] --reuse-values
 ```
 
