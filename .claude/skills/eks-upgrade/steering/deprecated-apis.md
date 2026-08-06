@@ -155,11 +155,14 @@ removed-version entry in `managedFields`, check the `manager` (writer):
 - If the writer is a **Kubernetes/EKS-internal APF controller** — its name starts with
   `api-priority-and-fairness-config-` (e.g.
   `api-priority-and-fairness-config-consumer-v1`,
-  `-producer-v1`) — or is the EKS-managed writer `eks` → **EXCLUDE.** These are the API
-  server's own bootstrap controllers and EKS-managed fields; the user cannot and need not
-  change them. AWS documents this writer string: both server-side-apply and client-side
-  managed fields on EKS "are tagged with `manager: eks`"
-  (kubernetes-field-management.html, "Field Management").
+  `-producer-v1`) — or is the EKS-managed writer `eks`, or the internal control-plane
+  writer `eks-internal` → **EXCLUDE.** These are the API server's own bootstrap
+  controllers and EKS-managed/control-plane fields; the user cannot and need not
+  change them. AWS documents the `eks` writer string: both server-side-apply and
+  client-side managed fields on EKS "are tagged with `manager: eks`"
+  (kubernetes-field-management.html, "Field Management"). Internal control-plane writers
+  such as `eks-internal` are likewise not user tools and do not count as a user-managed
+  writer.
 - If the writer is a **user tool** — `kubectl-*`, `helm`, `argocd-application-controller`,
   `flux`, or any other non-APF manager → **COUNT it.** This points to a real source
   manifest that must be updated.

@@ -103,10 +103,10 @@ particular for **Target >= 1.34**, which this table does not cover at all — yo
 perform a live lookup before reporting "no removed APIs found."
 
 **How to check:**
-1. Search AWS docs: `search_documentation` for "EKS Kubernetes <target> removed APIs"
-2. Search AWS docs: `search_documentation` for "Kubernetes <target> deprecated API migration guide"
-3. Fetch the Kubernetes "Deprecated API Migration Guide" and the CHANGELOG for the target
-   minor version (e.g., `CHANGELOG-1.34.md`) via `read_documentation`.
+1. Use your documentation-search capability to look up "EKS Kubernetes <target> removed APIs".
+2. Use your documentation-search capability to look up "Kubernetes <target> deprecated API migration guide".
+3. Retrieve the relevant AWS/Kubernetes documentation pages — the Kubernetes "Deprecated API
+   Migration Guide" and the CHANGELOG for the target minor version (e.g., `CHANGELOG-1.34.md`).
 4. Cross-check the EKS Upgrade Insights from Step 1 — AWS scans audit logs and flags
    removed-API usage per target version.
 
@@ -146,11 +146,14 @@ removed-version entry in `managedFields`, check the `manager` (writer):
 - If the writer is a **Kubernetes/EKS-internal APF controller** — its name starts with
   `api-priority-and-fairness-config-` (e.g.
   `api-priority-and-fairness-config-consumer-v1`,
-  `-producer-v1`) — or is the EKS-managed writer `eks` → **EXCLUDE.** These are the API
-  server's own bootstrap controllers and EKS-managed fields; the user cannot and need not
-  change them. AWS documents this writer string: both server-side-apply and client-side
-  managed fields on EKS "are tagged with `manager: eks`"
-  (kubernetes-field-management.html, "Field Management").
+  `-producer-v1`) — or is the EKS-managed writer `eks`, or the internal control-plane
+  writer `eks-internal` → **EXCLUDE.** These are the API server's own bootstrap
+  controllers and EKS-managed/control-plane fields; the user cannot and need not
+  change them. AWS documents the `eks` writer string: both server-side-apply and
+  client-side managed fields on EKS "are tagged with `manager: eks`"
+  (kubernetes-field-management.html, "Field Management"). Internal control-plane writers
+  such as `eks-internal` are likewise not user tools and do not count as a user-managed
+  writer.
 - If the writer is a **user tool** — `kubectl-*`, `helm`, `argocd-application-controller`,
   `flux`, or any other non-APF manager → **COUNT it.** This points to a real source
   manifest that must be updated.

@@ -30,8 +30,16 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 
 ### 5.2 — AL2 to AL2023 Migration Assessment
 
+> **Freshness gate — apply BEFORE citing the AL2 support date below:**
+> The AL2 support milestone is hardcoded and time-sensitive. Verify the AL2 support
+> status live before reporting (`search_documentation` for "Amazon Linux 2 end of
+> support", or check the [AL2 FAQ end-of-support notice](https://aws.amazon.com/amazon-linux-2/faqs/)).
+> Phrase the finding as "AL2 standard support ended 2026-06-30 (as of <assessment date>)".
+> If live lookup fails, use the hardcoded date as fallback and note "AL2 support status
+> unverified — date may be stale".
+
 **Why this matters:**
-- AL2 EKS-optimized AMIs: the last AL2 AMIs were published 2025-11-26 (1.32 is the last Kubernetes version to receive AL2 AMIs); the AL2 OS itself reaches end-of-life 2026-06-30
+- AL2 EKS-optimized AMIs: the last AL2 AMIs were published 2025-11-26 (1.32 is the last Kubernetes version to receive AL2 AMIs); AL2 standard support ENDED 2026-06-30 (as of the assessment date; verify live per the freshness gate above) — the AL2 OS no longer receives standard security updates. See https://aws.amazon.com/amazon-linux-2/faqs/
 - EKS 1.33+ does NOT publish AL2 AMIs — cannot create new AL2 node groups
 - AL2 uses cgroup v1; AL2023 uses cgroup v2 (required for EKS 1.35+)
 

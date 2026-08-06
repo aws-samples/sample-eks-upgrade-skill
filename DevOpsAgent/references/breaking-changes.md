@@ -13,16 +13,16 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 
 ## Version-Specific Breaking Changes
 
-### Target >= 1.25: PodSecurityPolicy Removed
+### Target >= 1.25: PodSecurityPolicy Removed (historical note — not an active check)
 
-**Check:** List PodSecurityPolicy resources via Kubernetes API
-- Apply the writer-identity filter in `deprecated-apis.md` Step 3b FIRST. A PSP is a real
-  finding only if a user tool (kubectl/helm/argocd/flux) wrote it in `managedFields`; objects
-  whose only trace comes from internal controllers do NOT count.
-- If a real (user-managed) PSP exists → HIGH severity. PSPs will cease to exist after upgrade.
-- Remediation: Migrate to Pod Security Standards (PSS) by labeling namespaces: `kubectl label namespace <ns> pod-security.kubernetes.io/enforce=restricted`
-- **Scoring home:** this is a removed API — scored under Deprecated APIs (Category 2), NOT
-  here. Do NOT also deduct for it under Breaking Changes — that would double-count.
+PodSecurityPolicy (PSP) was removed in Kubernetes 1.25. This skill's supported source-version
+floor is 1.30, so PSP is already gone on every assessable cluster — there is nothing left to
+scan for. This entry is retained as background context ONLY; it is NOT an active check and
+produces no finding or deduction.
+- Historical remediation (for reference only): workloads formerly governed by a PSP should use
+  Pod Security Standards (PSS) — label namespaces with
+  `kubectl label namespace <ns> pod-security.kubernetes.io/enforce=restricted`.
+- **Scoring home:** n/a — nothing to detect on any assessable (>= 1.30) cluster.
 
 ### Target >= 1.29: FlowSchema API v1beta2 Removed
 
@@ -76,8 +76,9 @@ Do NOT list generic Kubernetes release notes. Only report changes that affect re
 
 **Flag** (MEDIUM severity) only when `current <= 1.31 AND target >= 1.32` — i.e. the upgrade crosses INTO the anonymous-auth restriction. A cluster already on 1.32+ has the restriction in effect; do NOT flag it again.
 - Anonymous requests only allowed to /healthz, /livez, /readyz
-- Check: List ClusterRoleBindings via the Kubernetes API and flag any whose `subjects[]`
+- Check: List ClusterRoleBindings via the Kubernetes API and identify any whose `subjects[]`
   include `system:unauthenticated`
+- **Flag MEDIUM only if** that listing shows a `system:unauthenticated` subject bound to something **beyond the API-server health-endpoint defaults** — access to `/healthz`, `/livez`, `/readyz` (via the default `system:public-info-viewer` binding) is the expected default and is NOT a finding. If the only bindings surfaced are those health-endpoint defaults, do NOT write the finding.
 - Impact: Monitoring tools or LB health checks hitting non-health endpoints will get 401
 - **Scoring home:** scored under Breaking Changes (Category 1, MEDIUM = 4 pts). Do
   NOT also count it under Behavioral Changes (Category 9) — it has exactly one home.
@@ -138,8 +139,11 @@ than asserting the list is complete.
 
 **Conditional** — flag (HIGH severity) ONLY if cgroup v1 nodes are detected. Applies
 to any target >= 1.35. Note this is not an absolute block: the kubelet
-`failCgroupV1=false` override keeps cgroup v1 nodes running, and Fargate / EKS-managed
-AL2023 / Bottlerocket nodes are cgroup v2 and unaffected.
+`failCgroupV1=false` override keeps cgroup v1 nodes running. EKS-managed AL2023 and
+Bottlerocket nodes are cgroup v2 and unaffected (Bottlerocket additionally sets
+`failCgroupV1=false`). Fargate continues to use cgroup **v1**, but AWS manages the Fargate
+runtime, so there is no customer remediation for Fargate (source: AWS EKS Kubernetes 1.35
+release notes, "Fargate continues to use cgroup v1").
 - kubelet refuses to start on cgroup v1 nodes unless `failCgroupV1=false`
 - AL2 uses cgroup v1 by default; AL2023 and Bottlerocket use cgroup v2
 - **Check:** inspect node OS images — AL2 nodes (osImage contains "Amazon Linux 2",
@@ -162,7 +166,7 @@ AL2023 / Bottlerocket nodes are cgroup v2 and unaffected.
 
 **Check:** List deployments/daemonsets with `ingress-nginx` or `nginx-ingress` in name
 - This is NOT gated on the Kubernetes target version. The `ingress-nginx` project
-  retired in March 2026 (Kubernetes SIG/SRC announcement) — a calendar event, not a
+  retired in March 2026 (Kubernetes Steering and Security Response Committees announcement) — a calendar event, not a
   version property. Flag `ingress-nginx` on ANY cluster regardless of current or target
   version, matching `oss_addon_registry.json` ("HIGH severity regardless of current
   version compatibility").

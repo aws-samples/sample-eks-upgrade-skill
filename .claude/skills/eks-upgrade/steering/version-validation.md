@@ -27,7 +27,7 @@ Validate the upgrade path, determine support status, and enforce EKS upgrade rul
 | 1.33 | July 29, 2026 | July 29, 2027 | ⚠️ EXTENDED (standard support ended July 29, 2026; extended as of 2026-08-05 — verify live) |
 | 1.32 | March 23, 2026 | March 23, 2027 | ⚠️ EXTENDED |
 | 1.31 | November 26, 2025 | November 26, 2026 | ⚠️ EXTENDED |
-| 1.30 | July 23, 2025 | July 23, 2026 | ⚠️ EXTENDED |
+| 1.30 | July 23, 2025 | July 23, 2026 | ❌ UNSUPPORTED (extended support ended July 23, 2026; unsupported as of 2026-08-06 — verify live) |
 
 **CRITICAL:** The `upgradePolicy.supportType` field from the API is a CONFIGURATION PREFERENCE, not the current billing status. Always determine actual support status from the calendar above or from live AWS documentation.
 
