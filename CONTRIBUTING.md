@@ -67,14 +67,28 @@ Do **not** blindly copy one file over the other — make the *same logical fix* 
 
 ### Before you push
 
-Run the reconciliation gate:
+Run the reconciliation reporter, then diff the copies yourself:
 
 ```bash
 misc/sync-copies.sh            # human-readable report of every divergence
-misc/sync-copies.sh --check    # exits non-zero if a fix landed in only one copy
+misc/sync-copies.sh --check    # CI gate: exit non-zero on newly-drifted lines
 ```
 
-`--check` fails when a divergent line matches neither a known-intentional pattern (`misc/sync-divergences.txt`) nor the accepted baseline (`misc/sync-baseline.txt`) — that is the signal a fix was mirrored into only one copy. Once you have made the fix in both copies and confirmed the remaining divergences are all intentional, re-freeze the baseline with `misc/sync-copies.sh --update-baseline` and commit the updated `misc/sync-baseline.txt` alongside your change.
+**What `--check` does — and does not — catch.** `--check` compares each mapped file pair and fails when a *differing line* matches neither a known-intentional pattern (`misc/sync-divergences.txt`) nor the per-file accepted baseline (`misc/sync-baseline.txt`). It catches one thing well: a **new one-copy edit to an already-mapped line** that drifts the two copies apart, and (since the hardening) a **mapped file that is missing on one side**. It does **not** prove the copies are in sync. A green `--check` is silent about, at minimum:
+
+- **Baselined twins** — if a line's divergent counterpart is already frozen in the baseline, deleting or further editing that line can still pass.
+- **Matching deletions** — a change that removes the same content from both copies (or leaves both untouched) produces no differing line to flag.
+- **Unmapped content** — text in files outside the mapped `steering/` ↔ `references/` set (SKILL.md, the READMEs, prose the mapping does not glob) is never compared.
+- **`--update-baseline` widens the blind spot** — every line you freeze is a line `--check` will no longer inspect, so re-baseline only after a human diff, never to silence a failure you have not read.
+
+**The mirror-proof is the dual-copy diff, not the green check.** Before you push, and in every PR that touches skill content, diff the two copies of each changed file and confirm every remaining difference is an intentional divergence — treat a green `--check` as a regression tripwire for already-mapped lines, never as evidence that a fix landed in both copies:
+
+```bash
+git diff --no-index .claude/skills/eks-upgrade/steering/<name>.md \
+                    DevOpsAgent/references/<name>.md
+```
+
+Once the fix is in both copies and every remaining divergence is confirmed intentional, re-freeze the baseline with `misc/sync-copies.sh --update-baseline` and commit the updated `misc/sync-baseline.txt` alongside your change.
 
 ## Code of Conduct
 This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct).
