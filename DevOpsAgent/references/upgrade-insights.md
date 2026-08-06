@@ -17,9 +17,9 @@ For any insight with status other than `PASSING`:
 1. Use the EKS DescribeInsight API with the specific insight ID
 2. Record: detailed description, recommendation, affected resources
 
-### CLI fallback (when the EKS MCP server is unavailable)
+### CLI fallback (when the EKS APIs are not reachable through your tooling)
 
-If the EKS MCP tools are not available, call the same APIs via the AWS CLI:
+If those APIs are not reachable through your tooling, call them via the AWS CLI:
 
 ```bash
 # Step 1 equivalent — list all upgrade-readiness insights

@@ -18,7 +18,7 @@ In this scenario one category's backing Kubernetes read was denied by RBAC. Trea
 
 ### Version Validation (Step 1)
 - Current: 1.33, Target: 1.34 — valid one-hop upgrade
-- 1.33 is in STANDARD support (ends March 23, 2027) — assessment date is before that
+- 1.33 is in STANDARD support (ends July 29, 2026) — assessment date is before that
 - Node groups all at 1.33, skew against target = 1 (within policy)
 
 ### Breaking Changes (Step 2)
@@ -46,9 +46,6 @@ In this scenario one category's backing Kubernetes read was denied by RBAC. Trea
 - All nodes on containerd 2.x
 - No self-managed nodes
 - Subnet IPs: subnet-aaa (12 available), subnet-bbb (40 available), subnet-ccc (55 available)
-  - subnet-aaa has 12 available IPs — within the low-IP warning band (<= 15) — WARNING
-  - subnet-bbb and subnet-ccc are healthy; collective free IPs across candidate subnets
-    is well above the control-plane ENI placement floor
 
 ### Workload Risks (Step 6)
 - 3 deployments in non-system namespaces:

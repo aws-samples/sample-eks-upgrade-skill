@@ -339,6 +339,8 @@ if has_hard_blocker:
 | 60-69 | RISKY | Significant issues, upgrade not recommended yet |
 | 0-59 | NOT READY | Critical blockers, must resolve before upgrade |
 
+> **Partial-assessment cap:** these bands apply to a *complete* assessment. When `## Unassessed` is non-empty the verdict is capped below READY (the highest a partial assessment may print is GOOD, caveated) regardless of the arithmetic score — so a 98 remainder does NOT print READY. See the partial-assessment rules earlier in this section.
+
 ### 1.3 — Worked Example
 
 Cluster: `example-cluster`, upgrading 1.30 → 1.31
@@ -540,11 +542,11 @@ fully-assessed report. -->
 ---
 
 <!-- HEADLINE VERDICT BAND (R2-M1): when `## Unassessed` is non-empty, (a) append
-` (partial — N categories unassessed)` to the verdict band below, where N is the count of
-`## Unassessed` rows, AND (b) cap the verdict level below READY (the highest a partial
+` (partial — N category/categories unassessed)` to the verdict band below, where N is the count of
+`## Unassessed` rows — use the singular "category" when N is 1, "categories" otherwise — AND (b) cap the verdict level below READY (the highest a partial
 assessment may print is GOOD — a partial assessment can NEVER print an uncaveated READY).
 When every category was assessed, print the band with no suffix and no cap. -->
-## Readiness Score: [XX]% — [READY/GOOD/FAIR/RISKY/NOT READY][ (partial — N categories unassessed) — only when `## Unassessed` is non-empty]
+## Readiness Score: [XX]% — [READY/GOOD/FAIR/RISKY/NOT READY][ (partial — N category/categories unassessed — singular "category" when N=1) — only when `## Unassessed` is non-empty]
 
 [2-3 sentence summary. What's the bottom line? Can they upgrade safely?]
 

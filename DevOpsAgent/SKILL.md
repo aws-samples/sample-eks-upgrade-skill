@@ -72,9 +72,11 @@ See `references/report-generation.md` for the full list.
 > **Execution model — autonomous with hard stops.** This skill runs autonomously
 > and does NOT pause for interactive input. It proceeds only when the target cluster
 > and version are unambiguous. If any gating criterion below is not met, it performs
-> a **HARD STOP**: it does NOT guess, auto-select, or partially assess — it emits a
-> structured stop message and ends. Never assess a cluster or target the user did not
-> unambiguously specify or that cannot be uniquely determined.
+> a **HARD STOP**: it does NOT guess, auto-select, or partially assess an ambiguous
+> cluster/target — it emits a structured stop message and ends. Never assess a cluster
+> or target the user did not unambiguously specify or that cannot be uniquely determined.
+> (This gate is about an ambiguous cluster/target; denied reads *during* a valid
+> assessment are handled via `## Unassessed`, not a hard stop — see Action 3 below.)
 
 **HARD STOP output format** — whenever a criterion below triggers a hard stop, output
 exactly this and end the run (produce no readiness score):

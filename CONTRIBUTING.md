@@ -79,6 +79,7 @@ misc/sync-copies.sh --check    # CI gate: exit non-zero on newly-drifted lines
 - **Baselined twins** — if a line's divergent counterpart is already frozen in the baseline, deleting or further editing that line can still pass.
 - **Matching deletions** — a change that removes the same content from both copies (or leaves both untouched) produces no differing line to flag.
 - **Unmapped content** — text in files outside the mapped `steering/` ↔ `references/` set (SKILL.md, the READMEs, prose the mapping does not glob) is never compared.
+- **Unanchored divergence patterns** — whitelist patterns in `misc/sync-divergences.txt` are applied unanchored (matched anywhere in the differing line, no leading `^` is inserted), so a bare substring pattern can excuse an arbitrary one-copy edit that merely happens to contain that token. Keep each divergence pattern as specific as possible.
 - **`--update-baseline` widens the blind spot** — every line you freeze is a line `--check` will no longer inspect, so re-baseline only after a human diff, never to silence a failure you have not read.
 
 **The mirror-proof is the dual-copy diff, not the green check.** Before you push, and in every PR that touches skill content, diff the two copies of each changed file and confirm every remaining difference is an intentional divergence — treat a green `--check` as a regression tripwire for already-mapped lines, never as evidence that a fix landed in both copies:

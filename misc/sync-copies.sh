@@ -42,10 +42,11 @@
 #                                         #  current divergence is intentional)
 #
 # Portable: POSIX diff/grep/sort/awk, bash 3.2-safe (no mapfile / assoc arrays /
-# GNU-only flags). Whitelist patterns are extended regexes (ERE), one per line,
-# and are AUTO-ANCHORED to the start of the line (a leading '^' is added if the
-# author did not write one) so a short unanchored token cannot excuse an
-# arbitrary line whose divergence is elsewhere.
+# GNU-only flags). Whitelist patterns are extended regexes (ERE), one per line.
+# NOTE: patterns are NOT anchored — they match anywhere in the differing line
+# (substring/ERE), so a short unanchored token can excuse an arbitrary line whose
+# real divergence is elsewhere. Keep divergence patterns as specific as possible.
+# See CONTRIBUTING.md ("does not catch") for this blind spot.
 #
 # Hardening notes (what --check catches, and its limits — mirror CONTRIBUTING.md):
 #   * The mapped .md file list is derived by GLOB of both steering/ and
@@ -110,12 +111,12 @@ NEW_BASELINE=$(mktemp "${TMPDIR:-/tmp}/sync-nb.XXXXXX")
 trap 'rm -f "$PATTERN_FILE" "$BASELINE_CLEAN" "$LABEL_BASE" "$NEW_BASELINE"' EXIT
 
 # Clean the pattern file down to real ERE patterns (drop comments/blank lines).
-# The patterns are STRUCTURALLY ANCHORED in sync-divergences.txt itself: each
-# describes its axis token in the surrounding form it actually takes (a path
-# followed by a filename, a token in backticks, a leading list marker, etc.)
-# rather than as a bare substring, so a pattern cannot excuse an arbitrary
-# one-copy content edit that merely happens to contain the token. See the header
-# of sync-divergences.txt for the anchoring convention.
+# Comments and blank lines are stripped here; the remaining ERE patterns are
+# applied UNANCHORED (no leading '^' is inserted), so a pattern matches anywhere
+# in a differing line and a bare substring pattern can excuse an arbitrary
+# one-copy content edit that merely happens to contain the token. Author each
+# divergence pattern as specifically as possible to limit this. See the
+# "does not catch" list in CONTRIBUTING.md.
 if [ -f "$WHITELIST" ]; then
   grep -E -v '^[[:space:]]*(#|$)' "$WHITELIST" > "$PATTERN_FILE" || true
 fi

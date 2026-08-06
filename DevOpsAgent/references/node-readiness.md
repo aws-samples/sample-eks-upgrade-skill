@@ -32,7 +32,7 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 
 > **Freshness gate — apply BEFORE citing the AL2 support date below:**
 > The AL2 support milestone is hardcoded and time-sensitive. Verify the AL2 support
-> status live before reporting (`search_documentation` for "Amazon Linux 2 end of
+> status live before reporting (use your documentation-search capability for "Amazon Linux 2 end of
 > support", or check the [AL2 FAQ end-of-support notice](https://aws.amazon.com/amazon-linux-2/faqs/)).
 > Phrase the finding as "AL2 standard support ended 2026-06-30 (as of <assessment date>)".
 > If live lookup fails, use the hardcoded date as fallback and note "AL2 support status

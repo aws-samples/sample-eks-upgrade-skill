@@ -131,6 +131,8 @@ node-readiness.md	2. Recommend: cordon the old AL2 nodes to stop new scheduling 
 node-readiness.md	2. Run:
 node-readiness.md	3. Recommend: drain the workloads off the old AL2 nodes (ignoring DaemonSets, and clearing emptyDir data) so pods reschedule onto the AL2023 node group
 node-readiness.md	3. Recommend: drain workloads off the old nodes so pods reschedule onto AL2023 — e.g. `kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data`
+node-readiness.md	> status live before reporting (`search_documentation` for "Amazon Linux 2 end of
+node-readiness.md	> status live before reporting (use your documentation-search capability for "Amazon Linux 2 end of
 report-generation.md	## Step 4: Compose the Report
 report-generation.md	## Step 4: Write the Report
 report-generation.md	## Step 6: Deliver the Report
@@ -143,13 +145,15 @@ report-generation.md	---
 report-generation.md	After writing the markdown report, ask:
 report-generation.md	The ONLY always-valid delivery branch is to render the full report Markdown INLINE in
 report-generation.md	assessment, not a clean bill of health. This generalizes the `workload-risks.md`
+upgrade-insights.md	### CLI fallback (when the EKS APIs are not reachable through your tooling)
+upgrade-insights.md	### CLI fallback (when the EKS MCP server is unavailable)
 upgrade-insights.md	1. Call `get_eks_insights` with the cluster name
 upgrade-insights.md	1. Call `get_eks_insights` with the specific `insight_id`
 upgrade-insights.md	1. Use the EKS DescribeInsight API with the specific insight ID
 upgrade-insights.md	1. Use the EKS ListInsights API with the cluster name
 upgrade-insights.md	CLI fallback the top-level skill promises):
-upgrade-insights.md	If the EKS MCP tools are not available, call the same APIs via the AWS CLI:
 upgrade-insights.md	If the `get_eks_insights` MCP tool is not available, use the AWS CLI directly (this is the
+upgrade-insights.md	If those APIs are not reachable through your tooling, call them via the AWS CLI:
 upgrade-insights.md	Requires `eks:ListInsights` and `eks:DescribeInsight`. If Insights cannot be reached by either
 upgrade-insights.md	Requires `eks:ListInsights` and `eks:DescribeInsight`. If neither the MCP tool nor the CLI can
 upgrade-insights.md	clean pass).

@@ -98,7 +98,7 @@
         {"name": "deprecated_apis_unassessed", "check": "## Unassessed section lists the Deprecated APIs category with the denied/403 read as the reason"},
         {"name": "unassessed_excluded_from_sum", "check": "Deprecated APIs contributes NO row to the Master Finding List Pts sum and NO deduction — it is excluded, not scored 0"},
         {"name": "headline_partial_marker", "check": "headline band contains a '(partial' unassessed marker, e.g. '(partial — 1 category unassessed)'"},
-        {"name": "capped_below_ready", "check": "rating is NOT 'READY' despite the assessed-remainder arithmetic (partial assessment caps below READY)"},
+        {"name": "capped_below_ready", "check": "report rating contains 'GOOD' (a capped partial assessment is pinned to exactly GOOD, not READY and not an over-conservative FAIR/RISKY band)"},
         {"name": "assessed_remainder_98", "check": "assessed-remainder arithmetic score == 98 (100 - 2 for the single low-IP subnet warning)"}
       ]
     }

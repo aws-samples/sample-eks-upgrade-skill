@@ -166,7 +166,7 @@ If `kubectl auth can-i` itself errors (not a clean yes/no), treat the read as de
 **Hard-stop discipline (same as the AWS preflight).** If any probe above returns `AccessDenied`
 (AWS) or `no` (kubectl) → surface exactly which read is denied and the IAM action or RBAC verb/resource
 needed. Do NOT silently score the affected category 0 (a denied read is UNKNOWN / not-scored, per
-`steering/report-generation.md`, NOT a clean pass). Do NOT proceed with a full-cluster READY verdict
+`steering/report-generation.md`, NOT a clean pass). Do NOT proceed with an uncaveated READY
 until every probed read above is confirmed; the guarantee this preflight gives extends only to the
 reads it actually probes.
 
