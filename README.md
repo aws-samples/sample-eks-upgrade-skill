@@ -173,7 +173,7 @@ Claude Code merges MCP config from global (`~/.claude/settings.json`) and projec
 
 ### AWS IAM
 
-Replace `<region>` and `<account-id>` with your values. In the second statement, `eks:ListClusters`, `eks:DescribeAddonVersions`, and the `ec2:Describe*` actions use `"*"` because they do not support resource-level permissions. The `iam:` read actions (`iam:GetRole`, `iam:ListAttachedRolePolicies`, `iam:ListRolePolicies`, `iam:GetRolePolicy`) *do* support resource-level scoping and can be restricted to your node/cluster role ARNs if you prefer. See the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
+Replace `<region>` and `<account-id>` with your values. In the last statement, `eks:ListClusters`, `eks:DescribeAddonVersions`, and the `ec2:Describe*` actions use `"*"` because they do not support resource-level permissions. See the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
 
 ```json
 {
@@ -187,8 +187,7 @@ Replace `<region>` and `<account-id>` with your values. In the second statement,
         "eks:ListNodegroups",
         "eks:ListAddons",
         "eks:ListInsights",
-        "eks:DescribeInsight",
-        "eks:ListAccessEntries"
+        "eks:DescribeInsight"
       ],
       "Resource": "arn:aws:eks:<region>:<account-id>:cluster/*"
     },
@@ -209,25 +208,12 @@ Replace `<region>` and `<account-id>` with your values. In the second statement,
       "Resource": "arn:aws:eks:<region>:<account-id>:addon/*/*/*"
     },
     {
-      "Sid": "EKSReadAccessEntry",
-      "Effect": "Allow",
-      "Action": [
-        "eks:DescribeAccessEntry"
-      ],
-      "Resource": "arn:aws:eks:<region>:<account-id>:access-entry/*/*"
-    },
-    {
       "Sid": "AccountLevelReads",
       "Effect": "Allow",
       "Action": [
         "eks:ListClusters",
         "eks:DescribeAddonVersions",
-        "ec2:DescribeSubnets",
-        "ec2:DescribeSecurityGroupRules",
-        "iam:GetRole",
-        "iam:ListAttachedRolePolicies",
-        "iam:ListRolePolicies",
-        "iam:GetRolePolicy"
+        "ec2:DescribeSubnets"
       ],
       "Resource": "*"
     }

@@ -161,6 +161,8 @@ kubectl auth can-i list horizontalpodautoscalers -A       # HPA (deprecated-apis
 kubectl auth can-i list nodepools.karpenter.sh            # Karpenter nodepools (node-readiness, addon-compat)
 ```
 
+If `kubectl auth can-i` itself errors (not a clean yes/no), treat the read as denied.
+
 **Hard-stop discipline (same as the AWS preflight).** If any probe above returns `AccessDenied`
 (AWS) or `no` (kubectl) → surface exactly which read is denied and the IAM action or RBAC verb/resource
 needed. Do NOT silently score the affected category 0 (a denied read is UNKNOWN / not-scored, per

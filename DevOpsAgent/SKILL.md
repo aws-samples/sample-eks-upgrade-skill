@@ -126,11 +126,14 @@ and EC2 DescribeSubnets (node-readiness subnet-IP hard-blocker input). DescribeC
 APIs. Confirm cluster read access to: Deployments/DaemonSets/StatefulSets (workloads + deprecated-apis),
 Validating/MutatingWebhookConfigurations (breaking-changes), HorizontalPodAutoscalers (deprecated-apis),
 and `nodepools.karpenter.sh` (node-readiness + add-on compatibility) via a `can-i`-style list check.
+If `kubectl auth can-i` itself errors (not a clean yes/no), treat the read as denied.
 
 If any required AWS permission or Kubernetes read is denied → **HARD STOP** and report exactly which
 IAM action or RBAC verb/resource is missing. A denied read is reported UNKNOWN / not-scored (NOT a
-clean 0-deduction pass), per `references/report-generation.md`. Do NOT proceed with a partial
-assessment; the guarantee this preflight gives extends only to the reads it actually probes.
+clean 0-deduction pass), per `references/report-generation.md`. Do NOT proceed to a clean /
+READY verdict on a partial assessment; a partial assessment is allowed, but it can only yield a
+caveated result — never an uncaveated READY. The guarantee this preflight gives extends only to
+the reads it actually probes.
 
 **Action 4 — Determine target version**
 

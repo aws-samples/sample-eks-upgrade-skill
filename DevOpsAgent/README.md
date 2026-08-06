@@ -176,10 +176,6 @@ rules:
   - apiGroups: ["karpenter.sh"]
     resources: ["nodepools"]
     verbs: ["get", "list"]
-  # breaking-changes (target >= 1.25): PodSecurityPolicy resources enumerated (removed API)
-  - apiGroups: ["policy"]
-    resources: ["podsecuritypolicies"]
-    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -258,7 +254,6 @@ kubectl auth can-i list flowschemas.flowcontrol.apiserver.k8s.io --as-group eks-
 kubectl auth can-i list prioritylevelconfigurations.flowcontrol.apiserver.k8s.io --as-group eks-upgrade-check --as upgrade-check -A
 kubectl auth can-i list clusterrolebindings --as-group eks-upgrade-check --as upgrade-check -A
 kubectl auth can-i list nodepools.karpenter.sh --as-group eks-upgrade-check --as upgrade-check -A
-kubectl auth can-i list podsecuritypolicies --as-group eks-upgrade-check --as upgrade-check -A
 ```
 
 All should print `yes`. The `-A` flag on cluster-scoped resources avoids a spurious
