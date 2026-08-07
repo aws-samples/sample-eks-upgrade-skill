@@ -2,6 +2,8 @@ I'm testing the EKS upgrade skill scoring logic with mock data. Do NOT run any a
 
 Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring algorithm and report template, then generate the report.
 
+For this fixture, treat the "Breaking Changes (Step 2)" list below as the exhaustive scored set — those are the only breaking-change items that count toward Category 1 (so pod-infra-container-image is intentionally NOT among the scored items here; Cat1 = 12 and the resulting score is 76).
+
 ## Cluster Metadata
 
 - Cluster: legacy-platform

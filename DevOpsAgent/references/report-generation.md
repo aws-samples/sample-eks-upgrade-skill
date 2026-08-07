@@ -537,10 +537,13 @@ action items; it doesn't precede them.
 
 > Account ID hygiene: the account ID is sensitive. If this report will be shared outside the account, mask or omit the `[account-id]` value before sharing.
 
-<!-- CONDITIONAL Scope caveat — include this blockquote ONLY when `## Unassessed` is
-non-empty (i.e. at least one category was reported UNKNOWN / not-scored). When every
-category was assessed, OMIT it entirely — do not print scope boilerplate on a clean,
-fully-assessed report. -->
+<!-- Point-in-time caveat — UNCONDITIONAL. Print this blockquote line on EVERY report,
+whether or not `## Unassessed` is non-empty. Substitute the Assessment Date timestamp. -->
+> Point-in-time snapshot; READY reflects only the checks run at [YYYY-MM-DD HH:MM] and is not a guarantee of upgrade safety.
+
+<!-- CONDITIONAL Scope caveat — append this SECOND blockquote line ONLY when `## Unassessed`
+is non-empty (i.e. at least one category was reported UNKNOWN / not-scored). When every
+category was assessed, OMIT this line entirely — but the point-in-time line above still prints. -->
 > Scope: this assessment reflects only the checks that could be run against this cluster with the access available. A READY/GOOD rating means no blockers were detected **in the areas assessed** — it is not a guarantee of overall upgrade safety. See `## Unassessed` for any category whose backing read was denied or partial.
 
 ---

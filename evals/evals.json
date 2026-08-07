@@ -19,13 +19,13 @@
       "id": 2,
       "name": "hard-blocker-karpenter",
       "prompt_file": "scenarios/02-karpenter-blocker.md",
-      "expected_output": "Score 59% (hard-blocker cap), rating NOT READY, Karpenter flagged as blocker. Upgrade Plan orders control plane first, then data plane, then add-ons; the conditional Karpenter step is upgrade-first (Karpenter is the documented exception, upgraded before the control plane).",
+      "expected_output": "Score 59% (hard-blocker cap), rating NOT READY, Karpenter flagged as blocker. Upgrade Plan orders control plane first, then data plane, then add-ons; the conditional Karpenter step is upgrade-first (Karpenter is not an ordering exception — it is a compatibility prerequisite, brought to a target-compatible version before the control plane).",
       "assertions": [
         {"name": "score_capped_59", "check": "score == 59"},
         {"name": "rating_not_ready", "check": "report rating contains 'NOT READY'"},
         {"name": "karpenter_in_blockers", "check": "Blockers section mentions Karpenter"},
         {"name": "karpenter_version_detected", "check": "report contains '0.37'"},
-        {"name": "upgrade_order_correct", "check": "Upgrade Plan is control-plane-first (control plane before data plane and add-ons), AND the conditional Karpenter step runs upgrade-first (Karpenter upgraded before the control plane, as the documented exception)"}
+        {"name": "upgrade_order_correct", "check": "Upgrade Plan is control-plane-first (control plane before data plane and add-ons), AND the conditional Karpenter step runs upgrade-first (Karpenter upgraded before the control plane, as a compatibility prerequisite rather than an ordering exception)"}
       ]
     },
     {

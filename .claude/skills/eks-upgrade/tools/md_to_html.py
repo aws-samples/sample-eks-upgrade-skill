@@ -292,6 +292,7 @@ def md_to_html(md_content: str) -> str:
     in_table = False
     table_lines = []
     in_list = False
+    in_comment = False
     list_type = None
     list_items = []
 
@@ -433,6 +434,30 @@ def md_to_html(md_content: str) -> str:
 
         if in_code_block:
             code_lines.append(line)
+            continue
+
+        # HTML comments (<!-- ... -->) — strip them so they never reach the
+        # html.escape() pass below (otherwise a template comment renders as
+        # visible "<p>&lt;!-- ... --&gt;</p>" garbage). Handles single-line
+        # comments, multiple comments on one line, and multi-line comments.
+        # Comments inside fenced code blocks are left intact (handled above).
+        if in_comment:
+            end = line.find("-->")
+            if end == -1:
+                continue  # still inside a multi-line comment; drop the line
+            in_comment = False
+            line = line[end + 3:]  # resume after the comment close
+        # Remove any complete <!-- ... --> spans on this line.
+        line = re.sub(r"<!--.*?-->", "", line)
+        # An unterminated <!-- opens a multi-line comment: keep the text before
+        # it, then swallow subsequent lines until --> is seen.
+        open_idx = line.find("<!--")
+        if open_idx != -1:
+            in_comment = True
+            line = line[:open_idx]
+        # If nothing but a (now-stripped) comment remained, skip the empty line
+        # rather than emitting an empty <p>.
+        if not line.strip():
             continue
 
         stripped = line.strip()

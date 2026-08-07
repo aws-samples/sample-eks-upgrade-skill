@@ -114,6 +114,12 @@ Endpoints object in `managedFields`.
   like seccomp or Pod Security Standards"
   (`https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions-standard.html`,
   as of 2026-08-05).
+- **Clarifier:** this "deprecated in 1.34" wording is AWS EKS guidance, NOT an upstream
+  Kubernetes removal. Upstream, the `securityContext.appArmorProfile` field is GA since
+  Kubernetes 1.31 and is NOT deprecated; only the legacy
+  `container.apparmor.security.beta.kubernetes.io/*` annotation form is deprecated
+  upstream. Treat the AWS note as EKS-recommended migration guidance, not as a signal
+  that the field API is going away.
 - Remediation: Plan migration to seccomp profiles or Pod Security Standards per the AWS
   guidance above. (This SUPERSEDES the narrower annotation-only advice under
   "Target >= 1.30" — for a 1.34+ target, migrating off AppArmor entirely is the AWS

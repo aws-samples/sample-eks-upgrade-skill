@@ -29,6 +29,8 @@ Validate the upgrade path, determine support status, and enforce EKS upgrade rul
 | 1.31 | November 26, 2025 | November 26, 2026 | ⚠️ EXTENDED |
 | 1.30 | July 23, 2025 | July 23, 2026 | ❌ UNSUPPORTED (extended support ended July 23, 2026; unsupported as of 2026-08-06 — verify live) |
 
+> **Provenance:** calendar verified as of 2026-08-06 via https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html — re-verify live per the freshness gate above before reporting.
+
 **CRITICAL:** The `upgradePolicy.supportType` field from the API is a CONFIGURATION PREFERENCE, not the current billing status. Always determine actual support status from the calendar above or from live AWS documentation.
 
 **Cost impact:** Extended support has historically cost ~$0.60/hr vs ~$0.10/hr for standard support. These rates are indicative and subject to change — verify against the current [Amazon EKS pricing page](https://aws.amazon.com/eks/pricing/) before quoting figures to the user.

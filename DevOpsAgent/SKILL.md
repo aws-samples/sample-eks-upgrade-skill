@@ -117,6 +117,8 @@ If status is NOT `ACTIVE` → **HARD STOP**:
 - **CREATING/UPDATING/DELETING** — cluster is in transition; the EKS API will reject an upgrade.
 - **FAILED** — cluster must be recovered before an upgrade can be attempted.
 
+Cluster status gates the whole assessment; node group status gates node readiness. If a node group's lifecycle `status == UPDATING` (mid-rotation), the assessment can still run but node readings may be a transient old/new mix — flag it as potentially unstable and recommend re-running after rotation (see `references/node-readiness.md` §5.1).
+
 **Action 3 — Validate permissions (AWS + Kubernetes)**
 
 **3a — AWS API preflight.** Verify access to: ListNodegroups, ListAddons, DescribeAddonVersions

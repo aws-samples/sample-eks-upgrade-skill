@@ -24,6 +24,15 @@ Assess node groups, AMI types, version alignment, and migration requirements for
 3. Check for Karpenter NodePools (`nodepools.karpenter.sh`)
 4. Check for EKS Auto Mode (`computeConfig` in cluster describe)
 
+> **Nodegroup mid-rotation gate:** check each managed node group's lifecycle `status`
+> (from `eks:DescribeNodegroup` — already in the IAM policy, no new permission). If any
+> node group `status == UPDATING`, flag the whole assessment as **potentially unstable**:
+> a node group mid-rotation returns a mixed old/new node snapshot, so the Kubernetes-API
+> reads above (kubelet version, OS image, container runtime) may reflect a transient blend
+> of pre- and post-rotation nodes. Note this in the report and recommend re-running the
+> assessment after the rotation completes. (`health.issues` can be empty during a healthy
+> mid-rotation, so it does not catch this — the lifecycle `status` field does.)
+
 **Output per node group:**
 - Name, version, AMI type, instance types, scaling config
 - Version skew against target (calculated in version-validation)

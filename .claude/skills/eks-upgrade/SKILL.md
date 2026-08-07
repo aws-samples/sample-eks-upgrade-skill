@@ -135,6 +135,8 @@ Check the `status` field from the cluster description. If status is NOT `ACTIVE`
 
 Do NOT proceed with the assessment if cluster status is not ACTIVE. This is a hard blocker (see report-generation.md).
 
+Cluster status gates the whole assessment; node group status gates node readiness. If a node group's lifecycle `status == UPDATING` (mid-rotation), the assessment can still run but node readings may be a transient old/new mix — flag it as potentially unstable and recommend re-running after rotation (see node-readiness.md §5.1).
+
 **Action 3 — Validate permissions (AWS + Kubernetes)**
 
 **3a — AWS API preflight.** After describing the cluster, verify key AWS permissions by attempting:
