@@ -2,8 +2,6 @@ I'm testing the EKS upgrade skill scoring logic with mock data. Do NOT run any a
 
 Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring algorithm and report template, then generate the report.
 
-For this fixture, treat the "Breaking Changes (Step 2)" list below as the exhaustive scored set — those are the only breaking-change items that count toward Category 1 (so pod-infra-container-image is intentionally NOT among the scored items here; Cat1 = 12 and the resulting score is 76).
-
 ## Cluster Metadata
 
 - Cluster: legacy-platform
@@ -27,6 +25,8 @@ For this fixture, treat the "Breaking Changes (Step 2)" list below as the exhaus
   - 1 Deployment (`config-loader`) uses a `gitRepo` volume in its pod template
 - Service externalIPs Deprecated (target >= 1.36): LOW severity
   - 1 Service uses `spec.externalIPs`
+- --pod-infra-container-image Flag Removed (target >= 1.35): LOW severity
+  - self-managed / custom-AMI nodes present (kubelet flag applies)
 
 ### Deprecated APIs (Step 3)
 - No removed APIs in use for 1.36

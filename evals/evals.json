@@ -68,9 +68,9 @@
       "id": 6,
       "name": "k8s-136-selfmanaged-containerd-not-blocker",
       "prompt_file": "scenarios/06-k8s-136-selfmanaged-containerd.md",
-      "expected_output": "Score 76% FAIR, no hard blocker override. Self-managed containerd 1.x on target 1.36 is HIGH severity (+5 Cat 3) but NOT a hard blocker; gitRepo volume flagged HIGH.",
+      "expected_output": "Score 74% FAIR, no hard blocker override. Self-managed containerd 1.x on target 1.36 is HIGH severity (+5 Cat 3) but NOT a hard blocker; gitRepo volume flagged HIGH.",
       "assertions": [
-        {"name": "score_is_76", "check": "score == 76"},
+        {"name": "score_is_74", "check": "score == 74"},
         {"name": "rating_fair", "check": "report contains 'FAIR'"},
         {"name": "no_hard_blocker_override", "check": "score > 59"},
         {"name": "containerd_not_blocker", "check": "containerd noted as HIGH but not in Blockers as a hard blocker"},
