@@ -447,8 +447,11 @@ def md_to_html(md_content: str) -> str:
                 continue  # still inside a multi-line comment; drop the line
             in_comment = False
             line = line[end + 3:]  # resume after the comment close
-        # Remove any complete <!-- ... --> spans on this line.
-        line = re.sub(r"<!--.*?-->", "", line)
+        # Remove any complete <!-- ... --> spans on this line. re.DOTALL makes
+        # "." span newlines so a comment can never slip through unfiltered
+        # (CodeQL py/bad-tag-filter); multi-line comments are also handled by the
+        # in_comment state machine above, but the flag keeps this span robust.
+        line = re.sub(r"<!--.*?-->", "", line, flags=re.DOTALL)
         # An unterminated <!-- opens a multi-line comment: keep the text before
         # it, then swallow subsequent lines until --> is seen.
         open_idx = line.find("<!--")
