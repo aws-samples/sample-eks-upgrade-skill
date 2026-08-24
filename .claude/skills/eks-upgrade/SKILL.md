@@ -165,12 +165,14 @@ kubectl auth can-i list nodepools.karpenter.sh            # Karpenter nodepools 
 
 If `kubectl auth can-i` itself errors (not a clean yes/no), treat the read as denied.
 
-**Hard-stop discipline (same as the AWS preflight).** If any probe above returns `AccessDenied`
-(AWS) or `no` (kubectl) → surface exactly which read is denied and the IAM action or RBAC verb/resource
-needed. Do NOT silently score the affected category 0 (a denied read is UNKNOWN / not-scored, per
-`steering/report-generation.md`, NOT a clean pass). Do NOT proceed with an uncaveated READY
-until every probed read above is confirmed; the guarantee this preflight gives extends only to the
-reads it actually probes.
+**Denied-read discipline (same for the AWS and Kubernetes preflights).** If any probe above
+returns `AccessDenied` (AWS) or `no` (kubectl) → surface exactly which read is denied and the IAM
+action or RBAC verb/resource needed, then ask the user whether to (a) fix the permission and
+re-run the probe, or (b) continue with a **partial assessment**. A denied read is NOT a hard stop
+and NOT a silent 0: the affected category is reported UNKNOWN / not-scored and listed in
+`## Unassessed`, per `steering/report-generation.md`. A partial assessment can NEVER yield an
+uncaveated READY — the headline verdict carries the partial marker and is capped below READY.
+The guarantee this preflight gives extends only to the reads it actually probes.
 
 **Action 4 — Determine target version**
 

@@ -132,12 +132,17 @@ Validating/MutatingWebhookConfigurations (breaking-changes), HorizontalPodAutosc
 and `nodepools.karpenter.sh` (node-readiness + add-on compatibility) via a `can-i`-style list check.
 If `kubectl auth can-i` itself errors (not a clean yes/no), treat the read as denied.
 
-If any required AWS permission or Kubernetes read is denied → **HARD STOP** and report exactly which
-IAM action or RBAC verb/resource is missing. A denied read is reported UNKNOWN / not-scored (NOT a
-clean 0-deduction pass), per `references/report-generation.md`. Do NOT proceed to a clean /
-READY verdict on a partial assessment; a partial assessment is allowed, but it can only yield a
-caveated result — never an uncaveated READY. The guarantee this preflight gives extends only to
-the reads it actually probes.
+If any required AWS permission or Kubernetes read is denied → this is NOT a hard stop (the
+hard stops in this Step 0 are for an ambiguous cluster/target only — see the execution-model
+note above). Instead, proceed as a **partial assessment**:
+1. Record exactly which IAM action or RBAC verb/resource is denied.
+2. Continue the assessment. Every category whose backing read was denied is reported
+   UNKNOWN / not-scored (NOT a clean 0-deduction pass) and listed in `## Unassessed`,
+   per `references/report-generation.md`.
+3. The headline verdict carries the `(partial — N category/categories unassessed)` marker
+   and is capped below READY — a partial assessment can NEVER yield an uncaveated READY.
+
+The guarantee this preflight gives extends only to the reads it actually probes.
 
 **Action 4 — Determine target version**
 
