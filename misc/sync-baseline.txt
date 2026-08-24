@@ -1,0 +1,177 @@
+# sync-baseline.txt — accepted intentional divergences, frozen by
+# the sync-copies.sh --update-baseline mode. Each entry is
+# "<file-label><TAB><verbatim divergent line>": a per-file accepted
+# divergence NOT matched by a systematic pattern in sync-divergences.txt
+# but reviewed as intentional. The line is accepted ONLY for its own
+# file; the same text in another file is still flagged as DRIFT. A NEW
+# divergence not present here is flagged as DRIFT by --check.
+# DO NOT hand-edit; regenerate after a reviewed reconciliation.
+addon-compatibility.md	   Fetch (web fetch) `releases_url` and inspect the relevant release for "Kubernetes
+addon-compatibility.md	   Fetch (web fetch) the registry's `compatibility_url`. Look for a supported-versions
+addon-compatibility.md	   Read `${CLAUDE_SKILL_DIR}/data/oss_addon_registry.json`. If the add-on is listed,
+addon-compatibility.md	   Read `assets/oss_addon_registry.json`. If the add-on is listed,
+addon-compatibility.md	   Search with `remote_web_search` first to identify the authoritative source
+addon-compatibility.md	   Use `remote_web_search` with queries like:
+addon-compatibility.md	   Use `webFetch` on `releases_url` and inspect the relevant release for "Kubernetes
+addon-compatibility.md	   Use `webFetch` on the registry's `compatibility_url`. Look for a supported-versions
+addon-compatibility.md	   Use web search first to identify the authoritative source
+addon-compatibility.md	   Use web search with queries like:
+addon-compatibility.md	  **defaultVersion** (the `compatibilities[].defaultVersion` marker). If none is
+addon-compatibility.md	  --output text
+addon-compatibility.md	  --query 'addons[0].addonVersions[?compatibilities[0].defaultVersion==`true`].addonVersion' \
+addon-compatibility.md	  flagged, select the entry with the **highest semver**. Do NOT take the first
+addon-compatibility.md	  newest/default.
+addon-compatibility.md	# Select the DEFAULT version explicitly — do NOT trust addonVersions[0].
+addon-compatibility.md	- **Extract:** from `addons[0].addonVersions[]`, select the entry flagged as the
+addon-compatibility.md	- **Parameters:** `addonName: <addon>`, `kubernetesVersion: <target>`
+addon-compatibility.md	1. Search: `"Karpenter compatibility matrix Kubernetes <target-version>"` using `remote_web_search`
+addon-compatibility.md	1. Search: `"Karpenter compatibility matrix Kubernetes <target-version>"` using web search
+addon-compatibility.md	2. Fetch the official page: `https://karpenter.sh/docs/upgrading/compatibility/` using `webFetch`
+addon-compatibility.md	2. Fetch the official page: `https://karpenter.sh/docs/upgrading/compatibility/` via web fetch
+addon-compatibility.md	For EVERY managed add-on, you MUST run this command and compare — never declare an
+addon-compatibility.md	If no entry is flagged `defaultVersion`, pick the **highest semver** from
+addon-compatibility.md	NEVER just take the first array element (`[0]`), which is not guaranteed to be latest.
+addon-compatibility.md	This gives the latest available build for the target Kubernetes version. Then apply
+addon-compatibility.md	This returns the latest available build for the target Kubernetes version. Then apply
+addon-compatibility.md	```
+addon-compatibility.md	```bash
+addon-compatibility.md	`addons[0].addonVersions[].addonVersion` instead (e.g. sort with `sort -V`) —
+addon-compatibility.md	add-on "compatible" or "up to date" from judgment alone:
+addon-compatibility.md	compare — never declare an add-on "compatible" or "up to date" from judgment alone:
+breaking-changes.md	  include `system:unauthenticated`
+breaking-changes.md	- Check: List ClusterRoleBindings via the Kubernetes API and identify any whose `subjects[]`
+breaking-changes.md	- Check: `kubectl get clusterrolebindings -o json | jq '.items[] | select(.subjects[]?.name=="system:unauthenticated")'`
+breaking-changes.md	1. A documentation search for "EKS Kubernetes <target> breaking changes"
+breaking-changes.md	1. Search AWS docs: `search_documentation` for "EKS Kubernetes <target> breaking changes"
+breaking-changes.md	1. Search AWS docs: a documentation search for "EKS Kubernetes <target> breaking changes"
+breaking-changes.md	1. `search_documentation` for "EKS Kubernetes <target> breaking changes"
+breaking-changes.md	2. A documentation search for "Kubernetes <target> removed APIs"
+breaking-changes.md	2. Search AWS docs: `search_documentation` for "Kubernetes <target> removed APIs"
+breaking-changes.md	2. Search AWS docs: a documentation search for "Kubernetes <target> removed APIs"
+breaking-changes.md	2. `search_documentation` for "Kubernetes <target> removed APIs"
+breaking-changes.md	3. Fetch the K8s CHANGELOG for the target minor version
+breaking-changes.md	3. Fetch the Kubernetes changelog: `read_documentation` on the K8s CHANGELOG for the target
+breaking-changes.md	3. Fetch the Kubernetes changelog: the K8s CHANGELOG for the target
+breaking-changes.md	3. `read_documentation` on the K8s CHANGELOG for the target minor version
+breaking-changes.md	4. A documentation search for "EKS <target> release notes"
+breaking-changes.md	4. Check for EKS-specific changes: `search_documentation` for "EKS <target> release notes"
+breaking-changes.md	4. Check for EKS-specific changes: a documentation search for "EKS <target> release notes"
+breaking-changes.md	4. `search_documentation` for "EKS <target> release notes"
+deprecated-apis.md	   Migration Guide" and the CHANGELOG for the target minor version (e.g., `CHANGELOG-1.34.md`).
+deprecated-apis.md	   minor version (e.g., `CHANGELOG-1.34.md`) via `read_documentation`.
+deprecated-apis.md	# (kubectl added --show-managed-fields in 1.21 and omits managedFields unless that
+deprecated-apis.md	# WRONG — `v1` is a prefix of `v1beta3`, so `grep -v` strips both lines.
+deprecated-apis.md	# WRONG — kubectl 1.21+ hides managedFields from -o yaml / -o json by default
+deprecated-apis.md	# flag is set), so this scan returns false negatives.
+deprecated-apis.md	**Anti-pattern — do not pre-filter with naïve substring greps.**
+deprecated-apis.md	**Anti-pattern — do not pre-filter with naïve substring matching.**
+deprecated-apis.md	**Anti-pattern — do not rely on client-rendered output that hides managedFields.**
+deprecated-apis.md	**Anti-pattern — do not substitute `-o yaml` or `-o json`.**
+deprecated-apis.md	**How to scan:** List each resource kind across all namespaces via the Kubernetes
+deprecated-apis.md	... | grep -v "flowcontrol.apiserver.k8s.io/v1"
+deprecated-apis.md	1. Search AWS docs: `search_documentation` for "EKS Kubernetes <target> removed APIs"
+deprecated-apis.md	1. Use your documentation-search capability to look up "EKS Kubernetes <target> removed APIs".
+deprecated-apis.md	2. Search AWS docs: `search_documentation` for "Kubernetes <target> deprecated API migration guide"
+deprecated-apis.md	2. Use your documentation-search capability to look up "Kubernetes <target> deprecated API migration guide".
+deprecated-apis.md	3. Fetch the Kubernetes "Deprecated API Migration Guide" and the CHANGELOG for the target
+deprecated-apis.md	3. Retrieve the relevant AWS/Kubernetes documentation pages — the Kubernetes "Deprecated API
+deprecated-apis.md	> **Why not compare served vs stored apiVersion?** Reading an object's top-level
+deprecated-apis.md	> **Why not compare served vs stored apiVersion?** Reading the object's live
+deprecated-apis.md	> Do NOT use served/stored apiVersion as a per-object signal.
+deprecated-apis.md	> `apiVersion` (e.g. `kubectl get flowschema <name> -o jsonpath='{.apiVersion}'`)
+deprecated-apis.md	> `apiVersion` field back from the API cannot distinguish a migrated object from an
+deprecated-apis.md	> apiVersion as a per-object signal.
+deprecated-apis.md	> can hide a manifest still applied as `v1beta3`. Do NOT use served/stored
+deprecated-apis.md	> cannot distinguish a migrated object from an unmigrated one: the API server
+deprecated-apis.md	> control planes a `v1` read-back can hide a manifest still applied as `v1beta3`.
+deprecated-apis.md	> serves every object at the version you request, so the read-back value reflects
+deprecated-apis.md	> the read-back value reflects the request, not the source manifest. On 1.30+
+deprecated-apis.md	> the request, not the source manifest. On 1.30+ control planes a `v1` read-back
+deprecated-apis.md	> unmigrated one: the API server serves every object at the version you request, so
+deprecated-apis.md	A single resource often has multiple `manager=apiVersion` entries on the
+deprecated-apis.md	API and read `metadata.managedFields[]` from every returned object. Each entry
+deprecated-apis.md	Filter-then-decide pipelines drop the line entirely as soon as any benign
+deprecated-apis.md	For example, excluding every object whose managedFields text contains
+deprecated-apis.md	Output is `namespace/name<TAB>manager1=apiVersion1,manager2=apiVersion2,...`.
+deprecated-apis.md	The `manager` portion identifies which writer used each apiVersion (e.g.,
+deprecated-apis.md	The raw Kubernetes API response includes `metadata.managedFields`. Client tools
+deprecated-apis.md	Use the `-o jsonpath` form above. It accesses `managedFields` directly and
+deprecated-apis.md	`-o yaml` / `-o json` by default — kubectl added `--show-managed-fields` in 1.21 and
+deprecated-apis.md	```
+deprecated-apis.md	```bash
+deprecated-apis.md	`flowcontrol.apiserver.k8s.io/v1` also excludes `v1beta3` entries, because `v1`
+deprecated-apis.md	`managedFields` directly from the API object, not from rendered/summarized views.
+deprecated-apis.md	`manager=apiVersion` entries (e.g., a controller writing `v1` plus the user
+deprecated-apis.md	`manager=apiVersion` pair against the deprecation table in Step 3 instead.
+deprecated-apis.md	`manager=apiVersion` pair individually against the deprecation table in Step 3.
+deprecated-apis.md	apiVersion matches. Walk the full output line by line and check each
+deprecated-apis.md	contains a `manager` (the writer) and an `apiVersion` (the version that writer
+deprecated-apis.md	is a prefix of `v1beta3`. A single resource often has multiple
+deprecated-apis.md	is not affected by the default-hide behavior.
+deprecated-apis.md	kubectl get <kind> --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{"\t"}{range .metadata.managedFields[*]}{.manager}{"="}{.apiVersion}{","}{end}{"\n"}{end}'
+deprecated-apis.md	kubectl get <kind> -A -o yaml | grep apiVersion
+deprecated-apis.md	may strip it from rendered output (kubectl 1.21+ hides managedFields from
+deprecated-apis.md	omits managedFields unless that flag is set), producing false negatives. Always read
+deprecated-apis.md	pair. The `manager` value identifies which writer used each apiVersion (e.g.,
+deprecated-apis.md	same line (e.g., a controller writing `v1` plus the user writing `v1beta3`).
+deprecated-apis.md	soon as any benign apiVersion matches. Walk every object and check each
+deprecated-apis.md	used). For each object, record `namespace/name` plus every `manager=apiVersion`
+deprecated-apis.md	writing `v1beta3`), and filter-then-decide logic drops the object entirely as
+node-readiness.md	     --output table
+node-readiness.md	     --query 'Subnets[].{SubnetId:SubnetId,AZ:AvailabilityZone,AvailableIPs:AvailableIpAddressCount,CIDR:CidrBlock}' \
+node-readiness.md	   `AvailableIpAddressCount`, and `CidrBlock`.
+node-readiness.md	   ```
+node-readiness.md	   ```bash
+node-readiness.md	   and record, for each subnet: `SubnetId`, `AvailabilityZone`,
+node-readiness.md	   aws ec2 describe-subnets --subnet-ids <subnet-id-1> <subnet-id-2> ... \
+node-readiness.md	- AL2 nodes present, target >= 1.33 → FAIL (HIGH — no AL2 AMI available; migrate to AL2023). Scoring is deferred to `report-generation.md` (see Score Impact below): a cluster with a mix of AL2 and AL2023 nodes is not a hard score-cap override — the deduction is applied per that category, not treated as an automatic hard blocker here.
+node-readiness.md	2. Call the EC2 `DescribeSubnets` API with `SubnetIds: [<subnet-id-1>, <subnet-id-2>, ...]`
+node-readiness.md	2. Recommend: cordon the old AL2 nodes to mark them unschedulable so no new pods land on them
+node-readiness.md	2. Recommend: cordon the old AL2 nodes to stop new scheduling — e.g. `kubectl cordon <node-name>`
+node-readiness.md	2. Run:
+node-readiness.md	3. Recommend: drain the workloads off the old AL2 nodes (ignoring DaemonSets, and clearing emptyDir data) so pods reschedule onto the AL2023 node group
+node-readiness.md	3. Recommend: drain workloads off the old nodes so pods reschedule onto AL2023 — e.g. `kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data`
+node-readiness.md	> status live before reporting (`search_documentation` for "Amazon Linux 2 end of
+node-readiness.md	> status live before reporting (use your documentation-search capability for "Amazon Linux 2 end of
+report-generation.md	## Step 4: Compose the Report
+report-generation.md	## Step 4: Write the Report
+report-generation.md	## Step 6: Deliver the Report
+report-generation.md	## Step 6: Write the Report File
+report-generation.md	## Step 7: HTML Rendering (optional)
+report-generation.md	## Step 7: Offer HTML Conversion
+report-generation.md	### Filename Format
+report-generation.md	### Report Title Format
+report-generation.md	---
+report-generation.md	After writing the markdown report, ask:
+report-generation.md	The ONLY always-valid delivery branch is to render the full report Markdown INLINE in
+report-generation.md	assessment, not a clean bill of health. This generalizes the `workload-risks.md`
+upgrade-insights.md	### CLI fallback (when the EKS APIs are not reachable through your tooling)
+upgrade-insights.md	### CLI fallback (when the EKS MCP server is unavailable)
+upgrade-insights.md	1. Call `get_eks_insights` with the cluster name
+upgrade-insights.md	1. Call `get_eks_insights` with the specific `insight_id`
+upgrade-insights.md	1. Use the EKS DescribeInsight API with the specific insight ID
+upgrade-insights.md	1. Use the EKS ListInsights API with the cluster name
+upgrade-insights.md	CLI fallback the top-level skill promises):
+upgrade-insights.md	If the `get_eks_insights` MCP tool is not available, use the AWS CLI directly (this is the
+upgrade-insights.md	If those APIs are not reachable through your tooling, call them via the AWS CLI:
+upgrade-insights.md	Requires `eks:ListInsights` and `eks:DescribeInsight`. If Insights cannot be reached by either
+upgrade-insights.md	Requires `eks:ListInsights` and `eks:DescribeInsight`. If neither the MCP tool nor the CLI can
+upgrade-insights.md	clean pass).
+upgrade-insights.md	not a clean pass).
+upgrade-insights.md	path, report Category 7 as UNKNOWN / not-scored — do NOT score it 0 (a denied read is not a
+upgrade-insights.md	reach Insights, report Category 7 as UNKNOWN / not-scored — do NOT score it 0 (a denied read is
+version-validation.md	  (N→N-1), via console/CLI/SDK (`aws eks update-cluster-version` with the N-1 version → update
+version-validation.md	  (N→N-1), via the EKS console, API, or SDK (an update-cluster-version operation targeting the
+version-validation.md	  N-1 version produces a `VersionRollback` update type), gated by `ROLLBACK_READINESS` cluster
+version-validation.md	  insights.
+version-validation.md	  type `VersionRollback`), gated by `ROLLBACK_READINESS` cluster insights.
+version-validation.md	## Assessment Cannot Proceed
+version-validation.md	## Assessment Halted — target version not yet available on EKS
+version-validation.md	2. If NOT in the table → search AWS docs (`search_documentation` for "EKS Kubernetes versions")
+version-validation.md	2. If NOT in the table → search AWS docs (a documentation search for "EKS Kubernetes versions")
+version-validation.md	>    data from AWS docs (`search_documentation` for "EKS Kubernetes versions") before proceeding.
+version-validation.md	>    data from AWS docs (a documentation search for "EKS Kubernetes versions") before proceeding.
+version-validation.md	> 4. If live lookup fails or live lookup is unavailable → use the table as fallback, but add
+version-validation.md	> 4. If live lookup fails or the MCP server is unavailable → use the table as fallback, but add
+workload-risks.md	`kubectl get nodes` and node-group listings return empty. Category 3 (node readiness) is
+workload-risks.md	node listings and node-group inventories return empty. Category 3 (node readiness) is

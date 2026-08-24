@@ -26,6 +26,13 @@ Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring 
 ### Deprecated APIs (Step 3)
 - flowcontrol.apiserver.k8s.io/v1beta3 FlowSchema: removed in 1.32, 3 resources found — HIGH severity
 - flowcontrol.apiserver.k8s.io/v1beta3 PriorityLevelConfiguration: removed in 1.32, 2 resources found — HIGH severity
+- **Step 3b writer-identity scan (managedFields):** both API paths have a user-tool writer of v1beta3,
+  so they are REAL findings (not internal APF-controller-only objects):
+  - `flowschemas`: `custom-flowschema` has `managedFields` entry
+    `manager=kubectl-client-side-apply, apiVersion=flowcontrol.apiserver.k8s.io/v1beta3`
+  - `prioritylevelconfigurations`: `custom-plc` has `managedFields` entry
+    `manager=helm, apiVersion=flowcontrol.apiserver.k8s.io/v1beta3`
+  - (These APIs are REMOVED in target 1.32, not merely deprecated.)
 
 ### Add-on Compatibility (Step 4)
 - vpc-cni v1.19.0: ACTIVE, COMPATIBLE

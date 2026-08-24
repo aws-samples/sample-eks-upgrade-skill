@@ -25,6 +25,8 @@ Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring 
   - 1 Deployment (`config-loader`) uses a `gitRepo` volume in its pod template
 - Service externalIPs Deprecated (target >= 1.36): LOW severity
   - 1 Service uses `spec.externalIPs`
+- --pod-infra-container-image Flag Removed (target >= 1.35): LOW severity
+  - self-managed / custom-AMI nodes present (kubelet flag applies)
 
 ### Deprecated APIs (Step 3)
 - No removed APIs in use for 1.36
@@ -41,9 +43,9 @@ Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring 
 - Nodes are on **containerd 1.7.x** (custom AMI pinned to containerd 1.x)
 - Node type: self-managed / custom AMI (NOT an EKS managed node group)
 - Subnet IPs: subnet-aaa (40 available), subnet-bbb (38 available)
-- containerd 1.x on self-managed nodes with target 1.36 → HIGH severity, +5 under Category 3
+- containerd 1.x on self-managed nodes with target 1.36
   (outside containerd's tested matrix — kubelet 1.36 is validated against containerd 2.2/2.3+;
-  custom AMI must be rebuilt with containerd 2.0+). This is NOT a hard blocker and does not cap the score.
+  custom AMI must be rebuilt with containerd 2.0+).
 
 ### Workload Risks (Step 6)
 - 3 deployments in non-system namespaces:

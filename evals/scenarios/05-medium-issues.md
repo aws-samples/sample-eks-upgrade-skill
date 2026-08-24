@@ -66,25 +66,6 @@ Read `.claude/skills/eks-upgrade/steering/report-generation.md` for the scoring 
 - No AL2 nodes
 - No behavioral changes for 1.31
 
-## Expected Score Calculation (for verification)
-
-- Breaking Changes: none apply (Anonymous Auth only fires target >= 1.32). Total: 0
-- Deprecated APIs: 2 API paths deprecated but still served, BOTH with user-tool writers (Step 3b) = 1+1 = 2 pts. Capped at 20. Total: 2
-- Node Readiness: skew=1 (ok), all subnets >15. Total: 0
-- Add-on: 2 UPDATE_RECOMMENDED = 1+1 = 2 pts. Capped at 15. Total: 2
-- Karpenter: not installed. Total: 0
-- Workload HIGH: cron-scheduler(3) + legacy-importer(3+3) + admin-panel(3) = 12 → cap 8
-- Workload MEDIUM: legacy-importer(1+1) + report-generator(1) + report-generator no PDB(1) + email-sender no PDB(1) = 5 → cap 4
-- Workload total: min(8+4, 10) = 10
-- Insights: all PASSING = 0. (Any insight that merely confirms the deprecated-API finding is suppressed to 0 per the no-double-count rule; here all insights are PASSING anyway.) Total: 0
-- AL2: 0
-- Behavioral: 0
-- Unsupported: 0
-- Total deductions: 0+2+0+2+0+10+0+0+0+0 = 14
-- Score: 100-14 = 86%
-- Hard blocker check: no blockers (APIs are deprecated-but-served, NOT removed-in-target) → no override
-- Final: 86% GOOD
-
 ## Instructions
 
 Generate the full report to file: `evals/outputs/05-medium-issues-report.md`

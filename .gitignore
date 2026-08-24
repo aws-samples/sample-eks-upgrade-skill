@@ -15,6 +15,9 @@ venv/
 # Generated assessment reports
 EKS-Upgrade-Assessment-*
 
+# Eval scenario output reports
+evals/outputs/
+
 # Testing
 .hypothesis/
 .pytest_cache/

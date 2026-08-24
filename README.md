@@ -173,7 +173,7 @@ Claude Code merges MCP config from global (`~/.claude/settings.json`) and projec
 
 ### AWS IAM
 
-Replace `<region>` and `<account-id>` with your values. In the second statement, `eks:ListClusters`, `eks:DescribeAddonVersions`, and the `ec2:Describe*` actions use `"*"` because they do not support resource-level permissions. The `iam:` read actions (`iam:GetRole`, `iam:ListAttachedRolePolicies`, `iam:ListRolePolicies`, `iam:GetRolePolicy`) *do* support resource-level scoping and can be restricted to your node/cluster role ARNs if you prefer. See the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
+Replace `<region>` and `<account-id>` with your values. In the last statement, `eks:ListClusters`, `eks:DescribeAddonVersions`, and the `ec2:Describe*` actions use `"*"` because they do not support resource-level permissions. See the [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html).
 
 ```json
 {
@@ -187,8 +187,7 @@ Replace `<region>` and `<account-id>` with your values. In the second statement,
         "eks:ListNodegroups",
         "eks:ListAddons",
         "eks:ListInsights",
-        "eks:DescribeInsight",
-        "eks:ListAccessEntries"
+        "eks:DescribeInsight"
       ],
       "Resource": "arn:aws:eks:<region>:<account-id>:cluster/*"
     },
@@ -209,25 +208,12 @@ Replace `<region>` and `<account-id>` with your values. In the second statement,
       "Resource": "arn:aws:eks:<region>:<account-id>:addon/*/*/*"
     },
     {
-      "Sid": "EKSReadAccessEntry",
-      "Effect": "Allow",
-      "Action": [
-        "eks:DescribeAccessEntry"
-      ],
-      "Resource": "arn:aws:eks:<region>:<account-id>:access-entry/*/*"
-    },
-    {
       "Sid": "AccountLevelReads",
       "Effect": "Allow",
       "Action": [
         "eks:ListClusters",
         "eks:DescribeAddonVersions",
-        "ec2:DescribeSubnets",
-        "ec2:DescribeSecurityGroupRules",
-        "iam:GetRole",
-        "iam:ListAttachedRolePolicies",
-        "iam:ListRolePolicies",
-        "iam:GetRolePolicy"
+        "ec2:DescribeSubnets"
       ],
       "Resource": "*"
     }
@@ -284,18 +270,21 @@ The MCP server runs in its own process and doesn't inherit your shell environmen
 ## Project Structure
 
 ```
-eks-upgrade-skill/
+sample-eks-upgrade-skill/
 ├── README.md                         # This file
-├── LICENSE                           # MIT-0 license
+├── CONTRIBUTING.md                   # Contribution guide + dual-copy model
+├── CODE_OF_CONDUCT.md                # Amazon Open Source Code of Conduct
 ├── SECURITY.md                       # Security policy & responsible disclosure
+├── LICENSE                           # MIT-0 license
+├── .gitignore
 ├── .mcp.json                         # MCP server configuration
 ├── docs/                             # Sample report screenshots
 │   ├── sample-report-summary.png
 │   ├── sample-report-findings.png
 │   └── sample-report-upgrade-plan.png
-├── .claude/
+├── .claude/                          # Parent copy — Claude Code runtime
 │   └── skills/
-│       └── eks-upgrade/
+│       └── eks-upgrade/              # dir name is cosmetic (see note below)
 │           ├── SKILL.md              # Skill definition & agent workflow
 │           ├── steering/             # Assessment logic (agent instructions)
 │           │   ├── version-validation.md
@@ -309,17 +298,42 @@ eks-upgrade-skill/
 │           ├── data/
 │           │   └── oss_addon_registry.json
 │           └── tools/
-│               └── md_to_html.py
-├── DevOpsAgent/                      # eks-upgrade-check skill (packaging source)
-│   ├── SKILL.md                     # Skill definition & agent workflow
-│   ├── README.md                    # Skill packaging & zip build instructions
-│   ├── references/                  # Assessment logic (agent instructions)
+│               └── md_to_html.py     # Markdown→HTML report converter
+├── DevOpsAgent/                      # Port copy — DevOps Agent runtime (no tools/)
+│   ├── SKILL.md                      # Skill definition & agent workflow
+│   ├── README.md                     # Skill packaging & zip build instructions
+│   ├── references/                   # Assessment logic (mirrors steering/)
+│   │   ├── version-validation.md
+│   │   ├── breaking-changes.md
+│   │   ├── deprecated-apis.md
+│   │   ├── addon-compatibility.md
+│   │   ├── node-readiness.md
+│   │   ├── workload-risks.md
+│   │   ├── upgrade-insights.md
+│   │   └── report-generation.md
 │   └── assets/
-│       └── oss_addon_registry.json
-└── evals/                           # Evaluation scenarios & harness
-    ├── evals.json                   # Eval definitions
-    └── scenarios/                   # Per-scenario fixtures
+│       └── oss_addon_registry.json   # mirrors data/oss_addon_registry.json
+├── evals/                            # Evaluation scenarios & harness
+│   ├── evals.json                    # Eval definitions
+│   └── scenarios/                    # Per-scenario fixtures (01–07)
+└── misc/                             # Maintainer tooling
+    ├── sync-copies.sh                # Dual-copy divergence reconciliation
+    ├── sync-divergences.txt          # Known-intentional divergence patterns
+    └── sync-baseline.txt             # Accepted-divergence baseline (for --check)
 ```
+
+> **A note on naming.** Three names refer to this one skill: the directory
+> `.claude/skills/eks-upgrade/`, the skill name **`eks-upgrade-check`**, and the
+> invocation command `/eks-upgrade-check`. The **runtime name is
+> `eks-upgrade-check`** — that is what the skill is called and how you invoke it.
+> The `eks-upgrade/` directory name is cosmetic: Claude Code resolves skills by
+> the name declared in `SKILL.md`, not by the directory, so the mismatch is
+> harmless and the directory is left as-is.
+
+> **Maintaining the two copies.** The skill is shipped twice (parent + port) with
+> a documented file mapping. Every content fix must land in **both** copies — see
+> [CONTRIBUTING.md](CONTRIBUTING.md#dual-copy-model-read-before-editing-skill-content)
+> and run `misc/sync-copies.sh --check` before pushing.
 
 ## Contributing
 

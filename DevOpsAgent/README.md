@@ -38,10 +38,10 @@ See [`SKILL.md`](SKILL.md) for the full assessment workflow.
 
 **Option B — Upload as a zip**
 
-1. From **inside** this `DevOpsAgent/` folder, first copy the repository `LICENSE` in so it ships inside the zip, then zip the contents so that `SKILL.md` sits at the zip root:
+1. From **inside** this `DevOpsAgent/` folder, first copy the repository `LICENSE` in as `LICENSE.txt` so it ships inside the zip, then zip the contents so that `SKILL.md` sits at the zip root. Copy it with the `.txt` extension: the Upload skill flow rejects an extensionless `LICENSE` file with `File extension not allowed: 'LICENSE'`.
 
    ```bash
-   cp ../LICENSE ./LICENSE
+   cp ../LICENSE ./LICENSE.txt
    zip -r ../eks-upgrade-check-skill.zip .
    ```
 
@@ -58,6 +58,7 @@ See [`SKILL.md`](SKILL.md) for the full assessment workflow.
    ```
    SKILL.md
    README.md
+   LICENSE.txt
    references/version-validation.md
    references/...
    assets/oss_addon_registry.json
@@ -105,8 +106,12 @@ aws eks associate-access-policy \
   --access-scope type=cluster
 ```
 
-**If the access entry already exists** (e.g. created earlier via the EKS console, which
-does not add Kubernetes groups), `create-access-entry` will fail with
+> **Note:** This uses `--access-scope type=cluster` as AWS documents for
+> `AmazonAIOpsAssistantPolicy`; namespace-scoping is undocumented/untested for this
+> policy, so cluster scope is the supported configuration here.
+
+**If the access entry already exists** (e.g. created earlier via the EKS console, where
+the optional Groups field is easy to leave blank), `create-access-entry` will fail with
 `ResourceInUseException`. Add the group to the existing entry instead:
 
 ```bash
@@ -162,9 +167,14 @@ rules:
   - apiGroups: ["flowcontrol.apiserver.k8s.io"]
     resources: ["flowschemas", "prioritylevelconfigurations"]
     verbs: ["get", "list"]
-  # breaking-changes (target >= 1.31): scan ClusterRoleBindings for system:unauthenticated subjects
+  # breaking-changes (target >= 1.32): scan ClusterRoleBindings for system:unauthenticated subjects
+  # (anonymous auth restricted by default — KEP-4633, beta and default-on in Kubernetes 1.32)
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterrolebindings"]
+    verbs: ["get", "list"]
+  # node-readiness + addon-compatibility: Karpenter NodePools scanned for compatibility
+  - apiGroups: ["karpenter.sh"]
+    resources: ["nodepools"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -181,8 +191,9 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-(Core workload reads — Deployments, DaemonSets, StatefulSets, Pods, Nodes, events, pod
-logs — are already granted by `AmazonAIOpsAssistantPolicy` from Step 1; the ClusterRole
+(Core workload reads — Deployments, DaemonSets, StatefulSets, ReplicaSets, Jobs,
+CronJobs, Pods, Nodes, ConfigMaps — are already granted by `AmazonAIOpsAssistantPolicy`
+from Step 1; the ClusterRole
 adds only what that policy does not cover. `services` and `endpoints` are granted
 explicitly above rather than assumed from the managed policy, so the workload-risks
 externally-facing check and the target-≥1.33 Endpoints-deprecation check never depend on
@@ -198,8 +209,9 @@ kubectl apply -f eks-upgrade-check-rbac.yaml
 ```
 
 **Verify both halves of the setup.** First confirm the access entry actually carries the
-group — this is the step most often missed (the console access-entry flow does not add
-groups), and without it the binding applies to nobody:
+group — this is the step most often missed (the console access-entry flow offers an
+optional Groups field that is easy to leave blank), and without it the binding applies to
+nobody:
 
 ```bash
 aws eks describe-access-entry \
@@ -211,7 +223,11 @@ aws eks describe-access-entry \
 
 Expected output includes `"eks-upgrade-check"`. If it shows `[]` or the group is
 missing, the ClusterRoleBinding applies to nobody. Fix it by adding the group, then
-re-run the check above:
+re-run the check above. As with Step 1, `update-access-entry --kubernetes-groups`
+**replaces** the entry's group list rather than appending — if the entry already carries
+groups from other tooling (confirm with the `describe-access-entry` output above),
+include them all in one comma-separated list, e.g. `--kubernetes-groups
+other-group,eks-upgrade-check`:
 
 ```bash
 aws eks update-access-entry \
@@ -226,14 +242,18 @@ regardless of the access entry, so always check the group above too):
 
 ```bash
 kubectl auth can-i list poddisruptionbudgets --as-group eks-upgrade-check --as upgrade-check
-kubectl auth can-i list customresourcedefinitions --as-group eks-upgrade-check --as upgrade-check -A
-kubectl auth can-i list mutatingwebhookconfigurations --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list services --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list endpoints --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list networkpolicies --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list ingresses --as-group eks-upgrade-check --as upgrade-check
 kubectl auth can-i list horizontalpodautoscalers --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list customresourcedefinitions --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list validatingwebhookconfigurations --as-group eks-upgrade-check --as upgrade-check -A
+kubectl auth can-i list mutatingwebhookconfigurations --as-group eks-upgrade-check --as upgrade-check -A
 kubectl auth can-i list flowschemas.flowcontrol.apiserver.k8s.io --as-group eks-upgrade-check --as upgrade-check -A
 kubectl auth can-i list prioritylevelconfigurations.flowcontrol.apiserver.k8s.io --as-group eks-upgrade-check --as upgrade-check -A
 kubectl auth can-i list clusterrolebindings --as-group eks-upgrade-check --as upgrade-check -A
-kubectl auth can-i list services --as-group eks-upgrade-check --as upgrade-check
-kubectl auth can-i list endpoints --as-group eks-upgrade-check --as upgrade-check
+kubectl auth can-i list nodepools.karpenter.sh --as-group eks-upgrade-check --as upgrade-check -A
 ```
 
 All should print `yes`. The `-A` flag on cluster-scoped resources avoids a spurious
@@ -259,8 +279,9 @@ If your organization replaces the managed policy with a custom scoped one, it mu
 - **EKS (read):** `ListClusters`, `DescribeCluster`, `ListNodegroups`, `DescribeNodegroup`, `ListAddons`, `DescribeAddon`, `DescribeAddonVersions`, `ListInsights`, `DescribeInsight`
 - **EC2 (read):** `DescribeSubnets` (subnet IP capacity checks), `DescribeNetworkInterfaces` (unused-ENI remediation guidance)
 
-Checks that hit a missing permission are marked with the denied action in the failure
-reason — add that action to the custom policy and re-run.
+If a check hits a missing permission, the assessment reports that category as
+Unassessed rather than scoring it clean; on a best-effort basis the failure reason
+names the denied action. Add the missing action to the custom policy and re-run.
 
 ### Rolling out at scale
 

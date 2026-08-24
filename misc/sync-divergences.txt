@@ -1,0 +1,67 @@
+# sync-divergences.txt — known-intentional divergences between the two skill copies.
+#
+# One EXTENDED REGEX (ERE) per line. misc/sync-copies.sh treats any line that
+# differs between the parent copy and the DevOps Agent port as EXPECTED (not
+# drift) if the line matches ANY pattern here. Blank lines and #-comments are
+# ignored.
+#
+# ANCHORING CONVENTION (read before adding a pattern)
+# ---------------------------------------------------
+# A pattern must be ANCHORED so it cannot excuse an arbitrary one-copy content
+# edit that merely happens to contain a common word. Use one of:
+#   * a path/filename/API token that only appears on divergence lines
+#     (e.g. `(steering|references)/<file>.md`, `md_to_html\.py`,
+#      `DescribeAddonVersions`), OR
+#   * a `^`-anchor plus optional leading Markdown markup for tokens that begin
+#     their line (e.g. `^Write to the workspace root`), OR
+#   * a DISTINCTIVE MULTI-WORD CLAUSE unique to the intentional line — never a
+#     bare 2-word English fragment like "chat response" or "script execution".
+# A short unanchored token is a bug: it lets a genuine one-copy fix slip through
+# as "expected". If in doubt, match more of the line, not less.
+#
+# The patterns capture the THREE documented axes of intentional divergence:
+#   1. Directory names   — steering/ (parent) vs references/ (port)
+#   2. Tool vs no-tool    — parent has tools/md_to_html.py + HTML output;
+#                           the port renders inline and runs no scripts
+#   3. Framing / vocab    — Claude Code file output vs DevOps Agent inline chat;
+#                           CLI form (describe-addon-versions) vs API form
+#                           (DescribeAddonVersions)
+#
+# Add a pattern here ONLY when you have confirmed a divergence is intentional AND
+# anchored per the convention above. If a real content fix landed in one copy,
+# mirror it into the other instead of whitelisting it.
+
+# --- Axis 1: directory-name divergence (path form and prose form) ---
+# Anchored to a real mapped path with an .md extension, so it cannot match bare
+# prose that merely contains the word "steering" or "references".
+(steering|references)/[a-z][a-z0-9-]*\.md
+# Prose form: "... no steering file defines ..." / "... by a reference file:".
+\b(steering|reference) file( defines|:)
+
+# --- Axis 2 + 3: tool-vs-no-tool and file-output-vs-inline framing ---
+# Each pattern below is either a distinctive token (filename / product name) or a
+# distinctive multi-word clause unique to the intentional divergence line.
+md_to_html\.py
+DevOps Agent
+^Write to the workspace root
+report's TITLE \(not a saved filename\)
+report-title pattern above as the report's title/heading
+does NOT write files.*renders the report inline
+does NOT write files\. Do NOT reference or attempt to run any external conversion
+the DevOps Agent runtime cannot write files
+chat response\. Do NOT attempt to save the report to disk
+^Do NOT execute scripts to render the report
+^Do NOT generate HTML manually
+^script execution\.
+script execution is not available in this environment
+the port does NOT run any conversion tool
+The report is delivered inline as Markdown
+HTML is at most an optional artifact the human can generate
+
+# --- Axis 3 (cont.): CLI form vs API form of the addon-versions lookup ---
+# Distinctive API/CLI operation names; they only occur on divergence lines.
+describe-addon-versions
+DescribeAddonVersions
+
+# --- Report title/filename pattern (port omits the .md file extension) ---
+EKS-Upgrade-Assessment-.*(\.md)?
