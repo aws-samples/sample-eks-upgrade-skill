@@ -294,7 +294,8 @@ total_deductions = (breaking_changes_deduction + deprecated_apis_deduction
                     + node_skew_deduction + addon_deduction + karpenter_deduction
                     + workload_deduction + insights_deduction + al2_deduction
                     + behavioral_deduction + unsupported_deduction)
-score = max(0, 100 - total_deductions)
+calculated_score = max(0, 100 - total_deductions)
+score = calculated_score   # final numeric score; retain calculated_score for the report
 
 # --- Hard Blocker Override (apply AFTER arithmetic) ---
 # If ANY hard blocker is present, the upgrade CANNOT proceed safely.
@@ -346,6 +347,32 @@ if has_hard_blocker:
 | 0-59 | NOT READY | Critical blockers, must resolve before upgrade |
 
 > **Partial-assessment cap:** these bands apply to a *complete* assessment. When `## Unassessed` is non-empty the verdict is capped below READY (the highest a partial assessment may print is GOOD, caveated) regardless of the arithmetic score — so a 98 remainder does NOT print READY. See the partial-assessment rules earlier in this section.
+
+### 1.2a — Show calculated and final scores (MANDATORY)
+
+Every completed full or partial assessment MUST show these together near the headline:
+
+- **Calculated score:** `max(0, 100 - total_deductions)`, after per-category caps but
+  BEFORE the hard-blocker override. For partial assessments, label it “assessed checks
+  only”; excluded checks are not clean passes. Show the arithmetic, including the zero
+  floor if deductions exceed 100. Do not call the sum before category caps this score.
+- **Final score:** the headline's numeric `score`, equal to the calculated score unless
+  a hard blocker applies; then `min(calculated_score, 59)`. Never raise a score below 59
+  to 59. Do not assign a readiness rating to the calculated score separately.
+- **Adjustment:** name the actual blocker(s) and explain the 59% ceiling, or explicitly
+  say “No hard-blocker cap.” If the calculated score is already at/below 59, state that
+  the ceiling applies but does not lower it further. A cap is not an extra finding or
+  deduction; never add balancing points to the Master Finding List.
+
+A partial assessment limits the **verdict**, not the numeric score: for example,
+calculated 98%, final 98%, verdict GOOD (partial), with no fabricated deduction to 89.
+Explain that incomplete coverage prevents READY and refer to Unassessed. If the numeric
+score already yields FAIR/RISKY/NOT READY, preserve that lower verdict. When both a hard
+blocker and unassessed checks exist, explain both independently; the blocker cap and
+NOT READY verdict still apply, together with the partial marker.
+
+Identity/version/status preflight stops still produce NO readiness score; this display
+contract does not authorize scoring a halted assessment.
 
 ### 1.3 — Worked Example
 
@@ -459,23 +486,20 @@ after Evidence, the report is invalid — reorder before returning.
 8. **WORKLOAD TABLE REQUIRED:** The master workload table from `workload-risks.md` Step A
    MUST be produced before any workload risk findings are written. All workload counts in the
    report must be traceable to rows in that table.
-9. **SCORE RECONCILIATION (hard gate):** Sum the Pts column of the Master Finding List
-   table. The arithmetic check is: the headline score in `## Readiness Score:` MUST equal
-   100 minus that sum (after per-category caps). **EXCEPTION — hard-blocker override:** when
-   any hard blocker is present, the score is intentionally capped at 59 (which will NOT equal
-   100 − sum whenever the arithmetic result exceeds 59). In that case the capped score of 59
-   is correct and MUST be accepted — do NOT flag the report INVALID for the arithmetic
-   mismatch. Apply the strict "score == 100 − sum" equality check ONLY on the non-capped path
-   (no hard blocker). Also confirm each row's Deduction in the Score Breakdown table equals
-   the corresponding category subtotal in the Master Finding List. If the header, the Score
-   Breakdown, and the Master Finding List do not all agree (accounting for the hard-blocker
-   cap), the report is INVALID — recompute and fix before returning it. Never publish a score
-   that differs from the table it is derived from (except the documented ≤59 blocker cap).
-   Categories reported UNKNOWN / not-scored (Step 1.0) contribute NO row to the Pts sum and
-   NO deduction — they are excluded from this equality check by construction and are
-   reconciled instead against the `## Unassessed` section (every UNKNOWN category MUST appear
-   there). The headline rating must still carry the scope caveat whenever any category is
-   UNKNOWN.
+9. **SCORE RECONCILIATION (hard gate):** Sum Master Finding List points by category,
+   apply category caps, and verify each Score Breakdown deduction matches its capped
+   category subtotal. Sum those deductions. Verify the displayed
+   calculated score equals `max(0, 100 - total_deductions)`. Verify the displayed final
+   score and headline both equal `min(calculated_score, 59)` if any hard blocker exists,
+   or `calculated_score` otherwise. A calculated score below 59 must not be raised to 59.
+   The Score Breakdown Total shows category deductions and the calculated score; do not
+   insert a cap deduction to make it equal the final score. Verify the adjustment text
+   names actual blockers and explains whether the cap changed the number.
+   UNKNOWN / not-scored checks contribute no deduction and must appear in Unassessed;
+   partial coverage preserves the numeric score but limits the verdict to at most GOOD
+   and adds the partial marker. Reconcile that verdict limit separately from the numeric
+   blocker cap. If any number, explanation, or verdict disagrees, fix the report before
+   returning it. Never present the calculated score as an independent READY verdict.
 10. **MANDATORY-FINDING PRESENCE:** Every "always flag" item from the steering files
    MUST appear as a row in the Master Finding List when its target condition is met.
    When the upgrade crosses INTO the restriction (current <= 1.31 AND target >= 1.32) this
@@ -562,7 +586,13 @@ assessment may print is GOOD — a partial assessment can NEVER print an uncavea
 When every category was assessed, print the band with no suffix and no cap. -->
 ## Readiness Score: [XX]% — [READY/GOOD/FAIR/RISKY/NOT READY][ (partial — N category/categories unassessed — singular "category" when N=1) — only when `## Unassessed` is non-empty]
 
-[2-3 sentence summary. What's the bottom line? Can they upgrade safely?]
+[2-3 sentence summary explaining readiness and the actions required.]
+
+| Score summary | Result |
+|---------------|--------|
+| Calculated score | [CALCULATED]% = max(0, 100 − [TOTAL_DEDUCTIONS]); [“assessed checks only” if partial] |
+| Final score | [FINAL]% — [same verdict and partial marker as headline] |
+| Adjustment | [No hard-blocker cap, OR named blocker(s) and min([CALCULATED], 59) = [FINAL]. If already ≤59, explain no further reduction. If partial, ALSO explain that incomplete coverage limits the verdict to at most GOOD without changing the number.] |
 
 ### Score Breakdown
 
@@ -582,7 +612,7 @@ not applicable. UNKNOWN categories contribute NO deduction to the Total (Step 1.
 | AL2 / AMI | ✅/⚠️/❌/❔ | -X pts | [summary] |
 | Behavioral Changes | ✅/⚠️/❌/❔ | -X pts | [summary] |
 | Unsupported Version | ✅/❌/N/A | -X pts | [summary — omit row if version is supported] |
-| **Total** | | **-X pts** | **Score: XX%** |
+| **Total** | | **-X pts** | **Calculated score: [CALCULATED]%** |
 
 ---
 

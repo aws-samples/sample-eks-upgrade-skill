@@ -89,6 +89,11 @@ The skill discovers your EKS clusters, asks which cluster and target version, an
 | 60–69 | RISKY | Significant issues, not recommended yet |
 | 0–59 | NOT READY | Critical blockers, must resolve first |
 
+Reports show the **calculated score**, the **final score**, and the reason for any
+hard-blocker cap. For example, a calculated 86% becomes 59% when an incompatible
+Karpenter version blocks the upgrade. Partial assessments keep their numeric score
+but cannot receive a READY verdict; missing checks are listed explicitly.
+
 ## Output
 
 Reports are generated in the workspace root:
@@ -315,7 +320,7 @@ sample-eks-upgrade-skill/
 │       └── oss_addon_registry.json   # mirrors data/oss_addon_registry.json
 ├── evals/                            # Evaluation scenarios & harness
 │   ├── evals.json                    # Eval definitions
-│   └── scenarios/                    # Scoring and workflow fixtures (01–12)
+│   └── scenarios/                    # Scoring and workflow fixtures (01–13)
 └── misc/                             # Maintainer tooling
     ├── sync-copies.sh                # Dual-copy divergence reconciliation
     ├── sync-divergences.txt          # Known-intentional divergence patterns

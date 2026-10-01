@@ -1,6 +1,6 @@
 {
   "skill_name": "eks-upgrade-check",
-  "description": "Scoring, report, and workflow evals using mock data. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write. Scenarios 09\u201312 are focused decision evaluations, not full reports.",
+  "description": "Scoring, report, and workflow evals using mock data. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write. Scenarios 09\u201313 are focused decision evaluations, not full reports.",
   "output_path_convention": "Test-harness exception: scenarios intentionally instruct the report to be written to evals/outputs/NN-<name>-report.md for deterministic collection by the eval harness. This overrides report-generation.md, which mandates EKS-Upgrade-Assessment-<cluster>-<date>.md at the workspace root for real (non-eval) runs. evals/outputs/ is gitignored.",
   "evals": [
     {
@@ -219,6 +219,46 @@
         {
           "name": "unknown_scope",
           "check": "recovering with unspecified scope is potential risk/Unassessed, not a proven scored drain obstruction"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "score-transparency",
+      "prompt_file": "scenarios/13-score-transparency.md",
+      "expected_output": "Show calculated and final scores plus named adjustment: A 100/100 READY; B 86/59 NOT READY; C 50/50 NOT READY; D 98/98 GOOD partial; E 85/59 NOT READY partial; F 0/0 NOT READY with zero floor; G 75/75 FAIR partial; H no score.",
+      "assertions": [
+        {
+          "name": "uncapped_arithmetic",
+          "check": "A displays calculated 100 and final 100 with no hard-blocker cap; Total identifies calculated score"
+        },
+        {
+          "name": "blocker_explanation",
+          "check": "B displays calculated 86, final/headline 59 NOT READY and names Karpenter; no invented 27-point finding"
+        },
+        {
+          "name": "never_raise_low_score",
+          "check": "C displays calculated 50 and final 50, explains blockers impose ceiling without further reduction; never raises to 59"
+        },
+        {
+          "name": "partial_verdict_only",
+          "check": "D retains calculated/final 98, headline GOOD partial, and explains incomplete coverage without a deduction to 89"
+        },
+        {
+          "name": "both_adjustments",
+          "check": "E displays 85/59 NOT READY partial and explains both EBS CSI blocker and incomplete coverage"
+        },
+        {
+          "name": "zero_floor",
+          "check": "F shows max(0, 100 - 130) = 0 and final 0, never negative or raised to 59"
+        },
+        {
+          "name": "lower_partial_verdict",
+          "check": "G remains 75/75 FAIR partial; does not raise verdict to GOOD"
+        },
+        {
+          "name": "halt_no_score",
+          "check": "H reports preflight identity failure with no calculated or final readiness score"
         }
       ]
     }
