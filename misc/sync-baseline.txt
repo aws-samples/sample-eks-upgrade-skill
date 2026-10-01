@@ -16,28 +16,17 @@ addon-compatibility.md	   Use `webFetch` on `releases_url` and inspect the relev
 addon-compatibility.md	   Use `webFetch` on the registry's `compatibility_url`. Look for a supported-versions
 addon-compatibility.md	   Use web search first to identify the authoritative source
 addon-compatibility.md	   Use web search with queries like:
-addon-compatibility.md	  **defaultVersion** (the `compatibilities[].defaultVersion` marker). If none is
-addon-compatibility.md	  --output text
-addon-compatibility.md	  --query 'addons[0].addonVersions[?compatibilities[0].defaultVersion==`true`].addonVersion' \
-addon-compatibility.md	  flagged, select the entry with the **highest semver**. Do NOT take the first
-addon-compatibility.md	  newest/default.
-addon-compatibility.md	# Select the DEFAULT version explicitly — do NOT trust addonVersions[0].
-addon-compatibility.md	- **Extract:** from `addons[0].addonVersions[]`, select the entry flagged as the
-addon-compatibility.md	- **Parameters:** `addonName: <addon>`, `kubernetesVersion: <target>`
-addon-compatibility.md	1. Search: `"Karpenter compatibility matrix Kubernetes <target-version>"` using `remote_web_search`
-addon-compatibility.md	1. Search: `"Karpenter compatibility matrix Kubernetes <target-version>"` using web search
+addon-compatibility.md	1. Search: `"Karpenter compatibility matrix Kubernetes <queried-current-or-target-version>"` using `remote_web_search`
+addon-compatibility.md	1. Search: `"Karpenter compatibility matrix Kubernetes <queried-current-or-target-version>"` using web search
 addon-compatibility.md	2. Fetch the official page: `https://karpenter.sh/docs/upgrading/compatibility/` using `webFetch`
 addon-compatibility.md	2. Fetch the official page: `https://karpenter.sh/docs/upgrading/compatibility/` via web fetch
-addon-compatibility.md	For EVERY managed add-on, you MUST run this command and compare — never declare an
-addon-compatibility.md	If no entry is flagged `defaultVersion`, pick the **highest semver** from
-addon-compatibility.md	NEVER just take the first array element (`[0]`), which is not guaranteed to be latest.
-addon-compatibility.md	This gives the latest available build for the target Kubernetes version. Then apply
-addon-compatibility.md	This returns the latest available build for the target Kubernetes version. Then apply
+addon-compatibility.md	For EVERY managed add-on, query both versions using the selected account and region:
+addon-compatibility.md	Keep CLI automatic pagination enabled; do not truncate results or select only the default.
 addon-compatibility.md	```
 addon-compatibility.md	```bash
-addon-compatibility.md	`addons[0].addonVersions[].addonVersion` instead (e.g. sort with `sort -V`) —
-addon-compatibility.md	add-on "compatible" or "up to date" from judgment alone:
-addon-compatibility.md	compare — never declare an add-on "compatible" or "up to date" from judgment alone:
+addon-compatibility.md	and region: `addonName: <addon>, kubernetesVersion: <current>`, then the same add-on
+addon-compatibility.md	truncate results or select only the default.
+addon-compatibility.md	with `kubernetesVersion: <target>`. Follow every `nextToken` until exhausted; do not
 breaking-changes.md	  include `system:unauthenticated`
 breaking-changes.md	- Check: List ClusterRoleBindings via the Kubernetes API and identify any whose `subjects[]`
 breaking-changes.md	- Check: `kubectl get clusterrolebindings -o json | jq '.items[] | select(.subjects[]?.name=="system:unauthenticated")'`

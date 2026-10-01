@@ -129,11 +129,15 @@ node_skew_deduction = min(node_skew_deduction, 20)
 #     PLUS any non-AWS CNI installed in place of vpc-cni (Cilium, Calico) — an
 #     INCOMPATIBLE cluster CNI must never score READY
 #   - "optional add-on" = all other managed add-ons and identified OSS add-ons
-#   - INCOMPATIBLE = installed version is NOT in the target's compatible set
-#     (describe-addon-versions for the target returns no entry for it)
+#   - INCOMPATIBLE = installed version absent from the COMPLETE applicable managed
+#     target-compatible set, or explicitly unsupported by the OSS upstream source.
+#     A failed/incomplete API read is Unassessed, never proof of absence.
 #   - Status DEGRADED or FAILED with correct version = treat as critical/optional
 #     incompatible (same deduction as version incompatibility)
-#   - Status ACTIVE but version behind = "update recommended"
+#   - Default is NOT necessarily newest. Assign UPDATE_RECOMMENDED only per
+#     addon-compatibility.md §4.1; newer-than-default compatible builds incur 0.
+#   - Current support is recorded separately; no duplicate/current-only deduction.
+#     Failed current reads are Unassessed; target evidence remains independently usable.
 #   - UNKNOWN_VERIFIABLE = identified but upstream compat source unreachable/ambiguous
 #   - UNKNOWN_UNIDENTIFIED = workload looks like an add-on but couldn't be identified
 #   - SKEW_WARNING = kube-proxy more than 3 minors behind the target (beyond the
@@ -159,7 +163,7 @@ for each addon:
     elif addon.verdict == "UNKNOWN_VERIFIABLE":
         addon_deduction += 2       # identified, compatibility unverified
     elif addon.verdict == "UPDATE_RECOMMENDED":
-        addon_deduction += 1       # version behind but compatible
+        addon_deduction += 1       # compatible; verified recommendation per §4.1/§4.3
 for each unidentified_workload:
     addon_deduction += 2           # UNKNOWN_UNIDENTIFIED
 addon_deduction = min(addon_deduction, 15)
@@ -200,7 +204,9 @@ if karpenter_installed:
 #   - Multi-replica Deployment without a matching PodDisruptionBudget (1 pt)
 #   - Externally-facing workload missing lifecycle.preStop hook (1 pt)
 #     (workload-risks.md 6.6 — SCORING HOME: Category 6 MEDIUM)
-#   - Drain-blocking PDB (disruptionsAllowed == 0) (2 pts each)
+#   - Confirmed drain-risk PDB per workload-risks.md §6.2b (2 pts each):
+#     fresh status, expectedPods > 0, zero budget, and an eviction-restricted pod
+#     on a node in the declared maintenance scope; exclude empty/out-of-scope/exempt cases.
 #
 # IMPORTANT: If one workload has BOTH single-replica AND missing probes,
 # that is 1 HIGH (3 pts) + 1 MEDIUM (1 pt) = 4 pts for that workload.
@@ -221,8 +227,8 @@ for each workload in non_system_namespaces:
     if workload.missing_resource_requests:    workload_medium += 1
     if workload.externally_facing and workload.missing_prestop_hook: workload_medium += 1
     # externally_facing = backed by a LoadBalancer-type Service OR an Ingress
-for each pdb where disruptionsAllowed == 0:
-    workload_medium += 2                      # drain-blocking PDB
+for each pdb in non_system_namespaces where confirmed_drain_risk:
+    workload_medium += 2                      # once per PDB; §6.2b gates required
 workload_high = min(workload_high, 8)
 workload_medium = min(workload_medium, 4)
 workload_deduction = min(workload_high + workload_medium, 10)
@@ -527,6 +533,7 @@ action items; it doesn't precede them.
 | Cluster | [name] |
 | Region | [region] |
 | Account | [account-id] |
+| Kubernetes Connection | [verified context or API/MCP binding and matching cluster endpoint/identity] |
 | Current Version | [current] |
 | Target Version | [target] |
 | Assessment Date | [YYYY-MM-DD HH:MM] |
@@ -647,9 +654,9 @@ no denied or partial reads."]
 
 ### Add-on Inventory
 
-| Add-on | Type | Version | Status | Verdict | Source |
-|--------|------|---------|--------|---------|--------|
-| [name] | Managed/Self-managed/OSS | [ver] | [health] | one of the addon-compatibility.md §4.3 verdict states | [URL or "managed"] |
+| Add-on | Type | Version | Status | Current compatibility | Target compatibility | Verdict | Source |
+|--------|------|---------|--------|-----------------------|----------------------|---------|--------|
+| [name] | Managed/Self-managed/OSS | [ver] | [health] | Supported/Unsupported/Unknown | Supported/Unsupported/Unknown | target verdict per addon-compatibility.md; denied reads are not-scored | [URL or API/version queried] |
 
 ### Unknown & Unidentified Add-ons
 
@@ -698,7 +705,7 @@ compatibility with the target version manually.
 
 ### Pre-Upgrade Checklist
 - [ ] All blockers resolved
-- [ ] Add-ons updated to compatible versions
+- [ ] Add-on compatibility checked for current and target; any pre-upgrade replacement verified on both
 - [ ] Node groups ready (AL2023/Bottlerocket)
 - [ ] PDBs in place for critical workloads
 - [ ] Backup/snapshot taken
@@ -723,13 +730,28 @@ policy to `EXTENDED` first. Advisory only — it does not change the readiness s
 > Karpenter is on a version supporting [TARGET] before you begin (per the karpenter.sh
 > compatibility matrix). See the conditional Step 0 below.
 
-### Step 0 (CONDITIONAL — Karpenter only): Prerequisite — bring Karpenter to a [TARGET]-compatible version first
+**Candidate-version gate:** Every proposed pre-upgrade add-on/controller version must
+support BOTH [CURRENT] and [TARGET], with its documented migration steps checked
+(addon-compatibility.md §4.1a). If no verified transition exists, report the unresolved
+prerequisite and omit executable-looking install commands for unverified candidates.
+This gate applies to the conditional Karpenter commands below. Retain the normal
+post-control-plane managed-add-on update order unless a documented prerequisite applies.
+
+### Step 0 (CONDITIONAL): Verified compatibility prerequisites
+
+[Include only prerequisites established by addon-compatibility.md §4.1a. For an OSS
+controller that must change before the control plane, state the verified version
+supporting both Kubernetes versions and its documented migration order. If unresolved,
+state the missing transition and do not print an unverified install command.]
+
+**Karpenter, if installed and target-incompatible:**
 ```bash
 # ONLY if Karpenter is installed AND its running version does not support [TARGET].
 # This is a COMPATIBILITY PREREQUISITE, not an ordering rule: Karpenter must be on a
 # version that supports [TARGET] before the upgrade so it can provision compatible nodes
 # during the roll. Confirm the required version in the karpenter.sh compatibility matrix
-# (https://karpenter.sh/docs/upgrading/compatibility/), then upgrade in two steps —
+# (https://karpenter.sh/docs/upgrading/compatibility/) for BOTH [CURRENT] and [TARGET],
+# verify migration instructions, then upgrade in two steps —
 # CRDs first, then the controller. If Karpenter is not installed, skip this step.
 #
 # Step 0a: update the Karpenter CRDs (required for cross-major upgrades — the controller

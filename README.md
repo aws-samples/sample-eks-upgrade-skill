@@ -315,7 +315,7 @@ sample-eks-upgrade-skill/
 │       └── oss_addon_registry.json   # mirrors data/oss_addon_registry.json
 ├── evals/                            # Evaluation scenarios & harness
 │   ├── evals.json                    # Eval definitions
-│   └── scenarios/                    # Per-scenario fixtures (01–07)
+│   └── scenarios/                    # Scoring and workflow fixtures (01–12)
 └── misc/                             # Maintainer tooling
     ├── sync-copies.sh                # Dual-copy divergence reconciliation
     ├── sync-divergences.txt          # Known-intentional divergence patterns

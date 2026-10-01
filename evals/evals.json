@@ -1,6 +1,6 @@
 {
   "skill_name": "eks-upgrade-check",
-  "description": "Scoring and report generation evals. Each prompt feeds pre-determined findings and expects specific scoring behavior. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write",
+  "description": "Scoring, report, and workflow evals using mock data. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write. Scenarios 09\u201312 are focused decision evaluations, not full reports.",
   "output_path_convention": "Test-harness exception: scenarios intentionally instruct the report to be written to evals/outputs/NN-<name>-report.md for deterministic collection by the eval harness. This overrides report-generation.md, which mandates EKS-Upgrade-Assessment-<cluster>-<date>.md at the workspace root for real (non-eval) runs. evals/outputs/ is gitignored.",
   "evals": [
     {
@@ -100,6 +100,126 @@
         {"name": "headline_partial_marker", "check": "headline band contains a '(partial' unassessed marker, e.g. '(partial — 1 category unassessed)'"},
         {"name": "capped_below_ready", "check": "report rating contains 'GOOD' (a capped partial assessment is pinned to exactly GOOD, not READY and not an over-conservative FAIR/RISKY band)"},
         {"name": "assessed_remainder_98", "check": "assessed-remainder arithmetic score == 98 (100 - 2 for the single low-IP subnet warning)"}
+      ]
+    },
+    {
+      "id": 9,
+      "name": "cluster-identity-binding",
+      "prompt_file": "scenarios/09-cluster-identity.md",
+      "expected_output": "Wrong or unverified connection halts before Kubernetes reads; a unique endpoint-matching context is pinned; ambiguous credentials require selection; denied reads on a verified cluster retain partial-assessment behavior.",
+      "assertions": [
+        {
+          "name": "wrong_cluster_halts",
+          "check": "Case 1 halts without Kubernetes reads, configuration mutation, or readiness score; a matching display name is insufficient"
+        },
+        {
+          "name": "unique_context_pinned",
+          "check": "Case 2 selects operations-alias and uses explicit --context for all subsequent kubectl calls"
+        },
+        {
+          "name": "ambiguous_context_asks",
+          "check": "Case 3 requests credential/context selection instead of choosing admin or reader"
+        },
+        {
+          "name": "mcp_identity_independent",
+          "check": "Case 4 halts for unverifiable MCP binding even though local context matches"
+        },
+        {
+          "name": "permission_failure_partial",
+          "check": "Case 5 continues only as a caveated partial assessment; DevOps runtime does so autonomously"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "managed-addon-default-not-latest",
+      "prompt_file": "scenarios/10-addon-default-version.md",
+      "expected_output": "A/B/D/E/F COMPATIBLE (0); C UPDATE_RECOMMENDED (1); G INCOMPATIBLE optional (3, no cap); H Unassessed/not-scored. No downgrade based on default mismatch.",
+      "assertions": [
+        {
+          "name": "newer_equal_missing_default",
+          "check": "A, B, D, E, F are target COMPATIBLE, 0 pts, no default-mismatch downgrade"
+        },
+        {
+          "name": "behind_default",
+          "check": "C is UPDATE_RECOMMENDED, 1 pt; do not recommend installation before verifying the candidate on current"
+        },
+        {
+          "name": "complete_set_absence",
+          "check": "G is optional INCOMPATIBLE, 3 pts, no hard-blocker cap"
+        },
+        {
+          "name": "pagination_failure",
+          "check": "H is UNKNOWN/not-scored and Unassessed, not INCOMPATIBLE or a clean pass"
+        },
+        {
+          "name": "numeric_build_order",
+          "check": "D treats eksbuild.10 as newer than eksbuild.9 and includes page 2"
+        },
+        {
+          "name": "matching_compatibility_entry",
+          "check": "E uses the 1.35 default flag, not the 1.34 flag"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "current-target-transition",
+      "prompt_file": "scenarios/11-addon-transition.md",
+      "expected_output": "Alpha uses verified 2.5 bridge with documented CRD-first migration; beta transition unresolved; gamma current-only support concern without outage claim or extra deduction; delta and denied current lookup remain explicitly unassessed.",
+      "assertions": [
+        {
+          "name": "bridge_candidate",
+          "check": "Alpha recommends 2.5 before control plane with CRD migration; never 3.0 before 1.35"
+        },
+        {
+          "name": "no_bridge_no_invention",
+          "check": "Beta has no verified pre-upgrade candidate or fabricated install command; migration review required"
+        },
+        {
+          "name": "current_only_concern",
+          "check": "Gamma reports existing unsupported 1.34 combination, target COMPATIBLE 0 pts, no invented outage or hard blocker"
+        },
+        {
+          "name": "missing_current_evidence",
+          "check": "Delta current compatibility is UNKNOWN and Unassessed; known target compatibility retained"
+        },
+        {
+          "name": "denied_current_read",
+          "check": "Case 5 lists current compatibility read in Unassessed without discarding target evidence or presenting complete READY"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "pdb-drain-eligibility",
+      "prompt_file": "scenarios/12-pdb-drain-scope.md",
+      "expected_output": "Recovering, restrictive, percentage contribute 2 each; paused, other-group, exempt 0; stale/inconsistent Unassessed. PDB raw subtotal 6, medium cap yields Category 6 subtotal 4. Unspecified scope is unassessed.",
+      "assertions": [
+        {
+          "name": "empty_and_outside_scope",
+          "check": "paused and other-group contribute no drain-risk deduction"
+        },
+        {
+          "name": "health_vs_configuration",
+          "check": "recovering gets health-recovery advice; restrictive and percentage get owner policy/maintenance review; each contributes 2 pts"
+        },
+        {
+          "name": "unhealthy_eviction_exemption",
+          "check": "exempt contributes 0 because only unhealthy AlwaysAllow pod is on affected node"
+        },
+        {
+          "name": "unknown_data",
+          "check": "stale and inconsistent are Unassessed/not-scored, not clean passes"
+        },
+        {
+          "name": "subtotal",
+          "check": "raw PDB subtotal 6; Category 6 medium subtotal capped at 4; no hard-blocker cap"
+        },
+        {
+          "name": "unknown_scope",
+          "check": "recovering with unspecified scope is potential risk/Unassessed, not a proven scored drain obstruction"
+        }
       ]
     }
   ]
