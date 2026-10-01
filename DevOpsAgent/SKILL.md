@@ -51,7 +51,7 @@ The skill calculates a weighted readiness score:
 | AL2 Nodes / Behavioral | 10 pts | Informational |
 
 **Hard Blocker Override:** If any hard blocker is detected (e.g., incompatible Karpenter,
-critical add-on DEGRADED, cluster subnets collectively cannot place control-plane ENIs,
+critical add-on DEGRADED, the conservative subnet-capacity review guard,
 cluster not ACTIVE), the score is capped at ≤ 59% (NOT READY) regardless of other findings.
 See `references/report-generation.md` for the full list.
 

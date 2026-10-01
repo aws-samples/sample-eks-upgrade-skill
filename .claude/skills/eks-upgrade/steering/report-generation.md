@@ -96,18 +96,18 @@ for each distinct_kubelet_minor_version across all nodes (MNG union nodeInfo):
     if skew > 3:  node_skew_deduction += 20   # blocker — immediately caps (kubelet skew policy is N-3)
     if skew == 3: node_skew_deduction += 5    # warning — at max supported skew
 # Composition rule: the +2 per-low-subnet warning ALWAYS applies (per subnet, below); the
-# +5 collective hard blocker is ADDITIONAL and applies only when collective insufficiency holds.
+# +5 capacity-review policy guard is ADDITIONAL when the complete reported total is < 5.
 for each subnet in cluster_subnets:
     if subnet.available_ips < 5:     node_skew_deduction += 2   # single low subnet — warning (always applies)
     elif subnet.available_ips <= 15: node_skew_deduction += 2   # warning
-# Hard blocker ONLY when the cluster subnets COLLECTIVELY cannot place the control-plane
-# ENIs (placement insufficiency) — a single low subnet among healthy subnets is a
-# warning, not a blocker. Definition:
-#   candidate_subnets_collectively_cannot_place_enis
-#     = sum(AvailableIpAddressCount) across ALL cluster subnets < 5
-# (e.g. subnets of 3 + 12 IPs → sum 15 ≥ 5 → NO blocker; the 3-IP subnet is a +2 warning only.)
-if candidate_subnets_collectively_cannot_place_enis:
-    node_skew_deduction += 5   # hard blocker (collective/placement insufficiency), in addition to any +2 warnings
+# AWS documents up to five addresses, not a universal five-address minimum.
+# This threshold is the skill's conservative review policy, NOT a placement test:
+#   subnet_capacity_guard_triggered = sum(AvailableIpAddressCount) across ALL cluster subnets < 5
+# Only calculate from complete successful reads; missing/partial data is Unassessed.
+# A total >= 5 clears this guard but does not prove subnet connectivity or ENI capacity.
+# Example: 3 + 12 = 15 yields two warnings (+4), no numeric guard, no success guarantee.
+if subnet_capacity_guard_triggered:
+    node_skew_deduction += 5   # capacity-review policy blocker, in addition to any +2 warnings
 # Self-managed nodes (node-readiness.md 5.4 — no automated upgrade path). SCORING
 # HOME: Category 3. Binary: deduct once if any self-managed nodes are present.
 if any self_managed_nodes_present:
@@ -197,6 +197,9 @@ if karpenter_installed:
 # HIGH-severity risks (3 pts each, sub-cap 8 pts):
 #   - Deployment with replicas == 1
 #   - Deployment with strategy.type == Recreate
+#     (application revision rollout risk, not proof of a node-drain outage)
+# Keep saved-template deductions for replicas=0; label them review-before-reactivation
+# when no live pods remain, not current eviction risks. These are scoring-policy choices.
 #
 # MEDIUM-severity risks (1 pt each unless noted, sub-cap 4 pts):
 #   - Deployment missing readinessProbe on ANY container (1 pt)
@@ -205,8 +208,11 @@ if karpenter_installed:
 #   - Externally-facing workload missing lifecycle.preStop hook (1 pt)
 #     (workload-risks.md 6.6 — SCORING HOME: Category 6 MEDIUM)
 #   - Confirmed drain-risk PDB per workload-risks.md §6.2b (2 pts each):
-#     fresh status, expectedPods > 0, zero budget, and an eviction-restricted pod
-#     on a node in the declared maintenance scope; exclude empty/out-of-scope/exempt cases.
+#     EITHER exhausted budget (fresh status, expectedPods > 0, zero budget, and
+#     an eviction-restricted pod in scope) OR overlapping PDB selectors on an actual
+#     in-scope Running non-terminating pod (independent of budget/AlwaysAllow).
+#     Exclude empty/out-of-scope/Pending/terminal/terminating cases.
+#     Count each participating PDB once, even when both reasons or multiple pods apply.
 #
 # IMPORTANT: If one workload has BOTH single-replica AND missing probes,
 # that is 1 HIGH (3 pts) + 1 MEDIUM (1 pt) = 4 pts for that workload.
@@ -227,8 +233,8 @@ for each workload in non_system_namespaces:
     if workload.missing_resource_requests:    workload_medium += 1
     if workload.externally_facing and workload.missing_prestop_hook: workload_medium += 1
     # externally_facing = backed by a LoadBalancer-type Service OR an Ingress
-for each pdb in non_system_namespaces where confirmed_drain_risk:
-    workload_medium += 2                      # once per PDB; §6.2b gates required
+for each distinct pdb in non_system_namespaces where confirmed_drain_risk:
+    workload_medium += 2                      # once per PDB; budget OR overlap gates in §6.2b
 workload_high = min(workload_high, 8)
 workload_medium = min(workload_medium, 4)
 workload_deduction = min(workload_high + workload_medium, 10)
@@ -298,7 +304,7 @@ calculated_score = max(0, 100 - total_deductions)
 score = calculated_score   # final numeric score; retain calculated_score for the report
 
 # --- Hard Blocker Override (apply AFTER arithmetic) ---
-# If ANY hard blocker is present, the upgrade CANNOT proceed safely.
+# If ANY hard blocker is present, this assessment requires resolution/review before proceeding.
 # Cap score at 59 (NOT READY) regardless of the arithmetic result.
 #
 # Hard blockers (exhaustive list):
@@ -312,9 +318,9 @@ score = calculated_score   # final numeric score; retain calculated_score for th
 #   5. API removed in target version AND actively used in cluster (workloads fail)
 #   6. Cluster status != ACTIVE (EKS API rejects update-cluster-version)
 #   7. AL2-only node groups AND target >= 1.33 (no AL2 AMI available for target)
-#   8. Candidate control-plane subnets COLLECTIVELY cannot provide enough free IPs to
-#      place control-plane ENIs (EKS API rejects update-cluster-version). A single low
-#      subnet among otherwise-healthy subnets is a warning, not a blocker.
+#   8. Complete cluster-subnet total < 5 reported available IPs: conservative capacity-
+#      review policy guard, NOT a prediction that EKS rejects the update. A single low
+#      subnet with total >= 5 is a warning, not this policy blocker.
 #
 # NOTE: containerd 1.x on self-managed/custom-AMI nodes at target >= 1.36 is HIGH severity
 # (+5 under Category 3) but is NOT a hard blocker — it does not cap the score.
@@ -328,7 +334,7 @@ if any critical_addon.status in [DEGRADED, FAILED]:   has_hard_blocker = True
 if any api_removed_in_target_and_in_use:              has_hard_blocker = True
 if cluster_status != "ACTIVE":                        has_hard_blocker = True
 if al2_only_node_groups and target >= 1.33:           has_hard_blocker = True
-if candidate_subnets_collectively_cannot_place_enis:  has_hard_blocker = True   # single low subnet among healthy = warning, not blocker
+if subnet_capacity_guard_triggered:                  has_hard_blocker = True   # policy review guard, not proof of AWS rejection
 # containerd 1.x on self-managed nodes at target >= 1.36 is HIGH severity (+5 Cat 3) but is
 # NOT a hard blocker — it does not cap the score.
 
@@ -748,7 +754,16 @@ forward-decidable choices can foreclose that path, so decide them before/while u
   rollback — limit adoption of target-only APIs until the upgrade is confirmed stable.
 - **Add-on cross-compatibility** — for a clean rollback, EKS-managed add-ons should be compatible
   with BOTH the current and target versions, not target-only.
-Boundaries: Fargate rollback is unsupported; add-ons, etcd, workloads, and PVs are NOT reverted;
+Boundaries: Fargate **worker nodes** cannot be rolled back in place; a cluster using
+Fargate can still have its **control plane** rolled back. Pods whose Fargate kubelet
+minor version matches the pre-rollback control plane trigger a version-skew ERROR
+for rollback. Plan owner-coordinated removal of those pods before rollback and
+redeployment after rollback so replacements use the rolled-back version; account for
+the resulting application interruption. This is advisory, not permission to delete pods
+or use `--force`. Recheck live AWS guidance and rollback insights before maintenance.
+Source (verified 2026-10-01): https://docs.aws.amazon.com/eks/latest/userguide/fargate.html
+
+Add-ons, etcd data, workloads, and PVs are NOT reverted;
 only Auto Mode nodes auto-roll-back (managed / self-managed / hybrid node groups are the
 operator's job); rolling back to a version in extended support requires setting the cluster upgrade
 policy to `EXTENDED` first. Advisory only — it does not change the readiness score.

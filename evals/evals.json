@@ -1,6 +1,6 @@
 {
   "skill_name": "eks-upgrade-check",
-  "description": "Scoring, report, and workflow evals using mock data. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write. Scenarios 09\u201313 are focused decision evaluations, not full reports.",
+  "description": "Scoring, report, and workflow evals using mock data. Run with: claude -p \"$(cat evals/scenarios/<N>.md)\" --allowedTools Read,Write. Scenarios 09\u201315 are focused decision evaluations, not full reports.",
   "output_path_convention": "Test-harness exception: scenarios intentionally instruct the report to be written to evals/outputs/NN-<name>-report.md for deterministic collection by the eval harness. This overrides report-generation.md, which mandates EKS-Upgrade-Assessment-<cluster>-<date>.md at the workspace root for real (non-eval) runs. evals/outputs/ is gitignored.",
   "evals": [
     {
@@ -44,12 +44,12 @@
       "id": 4,
       "name": "subnet-single-low-warning",
       "prompt_file": "scenarios/04-subnet-exhausted.md",
-      "expected_output": "Score 87% GOOD, no hard blocker override; BOTH low subnets (aaa=3, bbb=12) are individually in the <=15 warning band (+2 each) but collectively 3+12=15 IPs is >=5, so no blocker override.",
+      "expected_output": "Score 87% GOOD, no hard blocker override; BOTH low subnets (aaa=3, bbb=12) are individually in the <=15 warning band (+2 each) but collectively 3+12=15 IPs clears the conservative capacity-review guard. This is not proof of ENI placement or AWS upgrade success.",
       "assertions": [
         {"name": "score_is_87", "check": "score == 87"},
         {"name": "rating_good", "check": "report contains 'GOOD'"},
         {"name": "no_hard_blocker_override", "check": "score > 59"},
-        {"name": "both_subnet_warnings_not_blocker", "check": "both low subnets (aaa and bbb) noted as warnings, neither in Blockers as a hard blocker (collective IPs >=5)"}
+        {"name": "both_subnet_warnings_not_blocker", "check": "both low subnets (aaa and bbb) noted as warnings, neither in Blockers as a hard blocker (collective IPs >=5); no claim that AWS upgrade success or ENI placement is guaranteed"}
       ]
     },
     {
@@ -260,6 +260,34 @@
           "name": "halt_no_score",
           "check": "H reports preflight identity failure with no calculated or final readiness score"
         }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "eks-maintenance-guidance",
+      "prompt_file": "scenarios/14-eks-maintenance-guidance.md",
+      "expected_output": "Capacity guards preserve scores without predicting AWS rejection or success; EKS node-update strategy, prefix allocation, and Fargate rollback advice match AWS guidance; dormant and singleton scores are unchanged.",
+      "assertions": [
+        {"name": "capacity_policy", "check": "Case 1: node 4, calculated/final 96; Case 2: node 9, calculated 91, final 59 NOT READY as a conservative policy guard; neither treats an address sum as a placement test"},
+        {"name": "partial_subnet", "check": "Case 3 does not evaluate the total guard from a partial list; missing capacity evidence is Unassessed"},
+        {"name": "eks_node_update_strategy", "check": "Case 4 allows up to ten extra nodes, not one; Case 5 explains terminate-first capacity reduction without recommending an automatic strategy switch"},
+        {"name": "prefix_constraints", "check": "Case 6 rejects prefix delegation as a per-pod address-saving remedy and notes the missing contiguous /28 and warm-pool demand"},
+        {"name": "fargate_scope", "check": "Case 7 distinguishes control-plane rollback eligibility from no in-place Fargate worker downgrade, retains observed node/kubelet evidence, and proposes owner-coordinated pod replacement without executing deletion or force"},
+        {"name": "workload_policy_unchanged", "check": "Case 8 retains 5 points but labels reactivation/application-rollout risk, not current eviction risk; Case 9 retains 3 single-replica + 2 restrictive-PDB points, recognizes owner-coordination intent, and applies no hard-blocker cap"}
+      ]
+    },
+    {
+      "id": 15,
+      "name": "overlapping-pdbs",
+      "prompt_file": "scenarios/15-overlapping-pdbs.md",
+      "expected_output": "Cases 1,2,4 have raw/applied 4 PDB points; 3,5,8 have 0; 6 changes from 0 to 4; 7 scores overlap 4 while listing stale budget status Unassessed; 9 is unassessed. No hard-blocker cap or per-pod/per-pair double counting.",
+      "assertions": [
+        {"name": "positive_budget_overlap", "check": "Case 1 reports both PDBs at 2 points each despite positive budgets and multiple matching pods; Category 6 subtotal 4"},
+        {"name": "deduplicate_causes", "check": "Case 2 retains raw 4, not 6, because p1 is counted once despite zero budget and overlap"},
+        {"name": "eligibility_scope", "check": "Cases 3 and 5 score 0 for outside-scope and Pending/terminating candidates; Case 4 still scores 4 because AlwaysAllow does not bypass multiple matching PDBs"},
+        {"name": "selector_and_namespace", "check": "Case 6 evaluates empty selector plus both matchExpressions: 0 before label removal, 4 after; Case 8 has no cross-namespace overlap"},
+        {"name": "unknown_checks", "check": "Case 7 scores independently confirmed overlap 4 while retaining stale-budget Unassessed; Case 9 does not trust the cached single PDB as proof of either overlap or safety"},
+        {"name": "non_blocker_remediation", "check": "No case applies the hard-blocker score cap; recommends owner review of overlapping coverage without automatic deletion, budget relaxation, or force"}
       ]
     }
   ]
